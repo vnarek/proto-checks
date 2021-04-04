@@ -3,9 +3,10 @@ package protochecks
 import (
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
+	"golang.org/x/tools/go/ssa"
 )
 
-var Analyer = &analysis.Analyzer{
+var Analyzer = &analysis.Analyzer{
 	Name: "protochecks",
 	Doc:  "check usage of protocol buffers v1 api in go packages",
 	Run: func(p *analysis.Pass) (interface{}, error) {
@@ -21,6 +22,14 @@ var Analyer = &analysis.Analyzer{
 type analyzer struct {
 }
 
-func (a *analyzer) run(p *analysis.Pass) (interface{}, error) {
+func (a *analyzer) run(pass *analysis.Pass) (interface{}, error) {
+	ssainput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
+	for _, fn := range ssainput.SrcFuncs {
+		runFunc(pass, fn)
+	}
 	return nil, nil
+}
+
+func runFunc(pass *analysis.Pass, fn *ssa.Function) {
+
 }
