@@ -31,5 +31,4 @@ func (a *analyzer) run(pass *analysis.Pass) (interface{}, error) {
 }
 
 func runFunc(pass *analysis.Pass, fn *ssa.Function) {
-
 }
