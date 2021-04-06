@@ -9,9 +9,9 @@ type Handler struct {
 	UnimplementedGreeterServer
 }
 
-func (h *Handler) SayHello(ctx context.Context, req *HelloRequest) (*HelloReply, error) {
-	fmt.Println(req.Person.Name) // want "possible nil *Person use GetPerson function"
+func (h *Handler) SayHello(ctx context.Context, requ *HelloRequest) (*HelloReply, error) {
+	fmt.Println(requ.Person.Name) // want "possible nil *Person use GetPerson function"
 	return &HelloReply{
-		Message: "Hello " + req.Person.GetName(),
+		Message: "Hello " + requ.Person.GetName(),
 	}, nil
 }
