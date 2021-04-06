@@ -1,6 +1,7 @@
 package protochecks
 
 import (
+	"github.com/vnarek/proto-checks/testdata/src/basic"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
@@ -17,6 +18,8 @@ var Analyzer = &analysis.Analyzer{
 		buildssa.Analyzer,
 	},
 }
+
+var _ = basic.File_basic_basic_proto
 
 //TODO: implement the analyzer
 type analyzer struct {
