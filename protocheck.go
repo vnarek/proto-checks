@@ -2,12 +2,12 @@ package protochecks
 
 import (
 	"fmt"
-	"go/token"
+	"go/ast"
 
 	"github.com/vnarek/proto-checks/testdata/src/basic"
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/buildssa"
-	"golang.org/x/tools/go/ssa"
+	"golang.org/x/tools/go/analysis/passes/ctrlflow"
+	"golang.org/x/tools/go/cfg"
 )
 
 var Analyzer = &analysis.Analyzer{
@@ -18,7 +18,7 @@ var Analyzer = &analysis.Analyzer{
 		return a.run(p)
 	},
 	Requires: []*analysis.Analyzer{
-		buildssa.Analyzer,
+		ctrlflow.Analyzer,
 	},
 }
 
@@ -29,42 +29,30 @@ type analyzer struct {
 }
 
 func (a *analyzer) run(pass *analysis.Pass) (interface{}, error) {
-	ssainput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
-	for _, fn := range ssainput.SrcFuncs {
-		runFunc(pass, fn)
+	cfg := pass.ResultOf[ctrlflow.Analyzer].(*ctrlflow.CFGs)
+	for _, f := range pass.Files {
+		for _, decl := range f.Decls {
+			switch d := decl.(type) {
+			case *ast.FuncDecl:
+				if d.Name.String() != "SayHello" {
+					break
+				}
+				runFunc(pass, cfg.FuncDecl(d))
+			}
+		}
 	}
 	return nil, nil
 }
 
-type LaticeVals int
-
-const (
-	NN LaticeVals = iota
-	Top
-)
-
-type MapLatice struct {
+type Node struct {
+	Succ []Node
+	Pred []Node
 }
 
-func runFunc(pass *analysis.Pass, fn *ssa.Function) {
-	if fn.Name() != "SayHello" { //for testing purposes
-		return
-	}
-	fmt.Println(fn.Signature.String())
-	for _, ins := range fn.Blocks[0].Instrs {
-		switch ins := ins.(type) {
-		case *ssa.FieldAddr:
-			fmt.Println("fieldAddr", ins.Field, ins.X)
-		case *ssa.Alloc:
-			fmt.Println("alloc", ins.Heap, ins.String())
-		case *ssa.Field:
-			fmt.Println("field", ins.Field, ins.X)
-		case *ssa.UnOp:
-			if ins.Op == token.MUL {
-				fmt.Println("*", ins.X)
-			}
-		case *ssa.Call:
-			fmt.Println("call", ins.Call.Value, ins.Call.Method)
-		}
-	}
+type CFG struct {
+	Top Node
+}
+
+func runFunc(pass *analysis.Pass, cfg *cfg.CFG) {
+	fmt.Println(cfg.Format(pass.Fset))
 }
