@@ -93,6 +93,14 @@ type PointerNode struct {
 	rhs Variable
 }
 
+func NewPointerNode(lhs, rhs Variable, ast ast.Node) *PointerNode {
+	return &PointerNode{
+		cfgNode: newCfg(ast),
+		lhs:     lhs,
+		rhs:     rhs,
+	}
+}
+
 // *X_1 = X_2
 type DerefNode struct {
 	cfgNode
@@ -104,6 +112,13 @@ type DerefNode struct {
 type NullNode struct {
 	cfgNode
 	lhs Variable
+}
+
+func NewNullNode(lhs Variable, ast ast.Node) *NullNode {
+	return &NullNode{
+		cfgNode: newCfg(ast),
+		lhs:     lhs,
+	}
 }
 
 func ToString(node Node) string {
@@ -123,7 +138,6 @@ func ToString(node Node) string {
 	default:
 		panic("unimplemented print")
 	}
-	return "some node"
 }
 
 type Node interface {
@@ -158,8 +172,8 @@ def blockToNode(block: Block, pred: CfgNode): Unit = {
 func (b *Builder) BlockToNode(block *cfg.Block, pred Node) {
 	first := pred
 	currPred := pred
-	for _, ast := range block.Nodes {
-		f, l := b.astToNode(ast, currPred)
+	for _, astNode := range block.Nodes {
+		f, l := b.astToNode(astNode, currPred)
 		if f != nil {
 			if first == pred {
 				first = f
@@ -167,7 +181,10 @@ func (b *Builder) BlockToNode(block *cfg.Block, pred Node) {
 			currPred = l
 		}
 	}
-	b.BlockNode[block] = first
+	//don't store blocks, that had no nodes
+	if first != pred {
+		b.BlockNode[block] = first
+	}
 	for _, suc := range block.Succs {
 		n, ok := b.BlockNode[suc]
 		if ok {
@@ -195,8 +212,13 @@ func (b *Builder) assignStmtToNode(stmt *ast.AssignStmt) (first, last Node) {
 	case *ast.Ident:
 		switch rhs := stmt.Rhs[0].(type) {
 		case *ast.Ident:
-			n := NewAssignNode(lhs.Name, rhs.Name, stmt)
-			return n, n
+			if rhs.Name == "nil" {
+				n := NewNullNode(lhs.Name, stmt)
+				return n, n
+			} else {
+				n := NewAssignNode(lhs.Name, rhs.Name, stmt)
+				return n, n
+			}
 		case *ast.UnaryExpr:
 			if rhs.Op == token.AND { //&
 				id, ok := rhs.X.(*ast.Ident)
@@ -206,7 +228,14 @@ func (b *Builder) assignStmtToNode(stmt *ast.AssignStmt) (first, last Node) {
 				n := NewRefNode(lhs.Name, id.Name, stmt)
 				return n, n
 			}
+		case *ast.StarExpr:
+			switch id := rhs.X.(type) {
+			case *ast.Ident:
+				n := NewPointerNode(lhs.Name, id.Name, stmt)
+				return n, n
+			}
 		}
+
 	default:
 		panic("wtf?")
 	}

@@ -1,0 +1,54 @@
+pod pojmem "variable" myslím Ident | SelectorExpr | IndexExpr | SliceExpr, kde Ident není "nil"
+pod pojmem "nil" myslím Ident, který je "nil"
+
+- BadStmt -> ignore
+- DeclStmt
+    - BadDecl -> ignore
+    - FunDecl -> ignore
+    - GenDecl (podle token.Token)
+        - IMPORT -> ignore
+        - TYPE -> ignore
+        - CONST - > **[X = alloc P]**
+        - VAR -> **[X = alloc P]**
+- EmptyStmt -> ignore
+- LabeledStmt -> no idea jak ho CFG zpracuje
+- ExprStmt -> asi ignore
+- SendStmt -> no idea
+- IncDecStmt -> asi ignore
+- AssignStmt (podle lhs)
+    - BadExpr -> ignore
+    - Ident (pokračujeme podle rhs AssignStmt)
+        - UnaryExpr (s & jako op a variable jako Exp) -> **[X1 = &X2]**
+        - variable -> **[X1 = X2]**
+        - StarExpr kde exp je variable -> **[X1 = \*X2]**
+        - nil -> **[X1 = null]**
+        - vše ostatní **[X1 = alloc P]** I guess
+    - Ellipsis -> ignore
+    - BasicLit -> ignore
+    - FuncLit -> ignore
+    - CompositeLit -> ignore
+    - ParenExpr -> no idea
+    - SelectorExpr -> záleží na tom co je selector, nechce se mi to rozepisovat, možná to budeme brát jako proměnnou
+    - IndexExpr -> idk, budeme to brát jako proměnnou?
+    - SliceExpr -> viz předchozí
+    - TypeAssertExpr -> ignore
+    - CallExpr -> ignore
+    - StarExpr kde Exp je variable (pokračujeme podle rhs AssignStmt)
+        - variable -> **[\*X1 = X2]**
+        - vše ostatní ignore
+    - UnaryExpr -> ignore
+    - BinaryExpr -> ignore
+    - KeyValueExpr -> ignore
+- GoStmt -> tohle asi rozbije CFG
+- DeferStmt -> ignore
+- ReturnStmt -> ignore
+- BranchStmt -> tohle asi rozbije CFG
+- BlockStmt -> tohle asi rozbije CFG
+- IfStmt -> tohle asi rozbije CFG
+- CaseClause -> tohle asi rozbije CFG
+- SwitchStmt -> tohle asi rozbije CFG
+- TypeSwitchStmt -> tohle asi rozbije CFG
+- CommClause -> tohle asi rozbije CFG
+- SelectStmt -> tohle asi rozbije CFG
+- ForStmt -> tohle asi rozbije CFG
+- RangeStmt -> tohle asi rozbije CFG

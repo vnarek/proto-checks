@@ -42,7 +42,10 @@ func main() {
 	  x := &y
 	}
 	y := &z
-	z := &a
+	for (false) {
+		a := *z
+	}
+	z := nil
 }
 `
 
