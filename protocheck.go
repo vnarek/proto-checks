@@ -44,15 +44,6 @@ func (a *analyzer) run(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-type Node struct {
-	Succ []Node
-	Pred []Node
-}
-
-type CFG struct {
-	Top Node
-}
-
 func runFunc(pass *analysis.Pass, cfg *cfg.CFG) {
 	fmt.Println(cfg.Format(pass.Fset))
 }
