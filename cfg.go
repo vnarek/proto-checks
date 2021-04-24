@@ -106,6 +106,26 @@ type NullNode struct {
 	lhs Variable
 }
 
+func ToString(node Node) string {
+	switch n := node.(type) {
+	case *StartNode:
+		return "[START]"
+	case *RefNode:
+		return "[" + n.lhs + " = &" + n.rhs + "]"
+	case *AssignNode:
+		return "[" + n.lhs + " = " + n.rhs + "]"
+	case *PointerNode:
+		return "[" + n.lhs + " = *" + n.rhs + "]"
+	case *DerefNode:
+		return "[*" + n.lhs + " = " + n.rhs + "]"
+	case *NullNode:
+		return "[" + n.lhs + " = null]"
+	default:
+		panic("unimplemented print")
+	}
+	return "some node"
+}
+
 type Node interface {
 	AST() ast.Node
 	Succ() map[Node]struct{}

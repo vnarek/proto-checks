@@ -5,21 +5,31 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"strings"
 
 	protochecks "github.com/vnarek/proto-checks"
 	"golang.org/x/tools/go/cfg"
 )
 
-func succPrint(n protochecks.Node) {
-	fmt.Printf("%#v\n", n.AST())
-	fmt.Println("childs")
+func printNodes(n protochecks.Node) {
+	succPrint(n, 0, make(map[protochecks.Node]struct{}))
+}
+
+func succPrint(n protochecks.Node, depth int, printed map[protochecks.Node]struct{}) {
+	printed[n] = struct{}{}
+	fmt.Print(strings.Repeat("  ", depth))
+	fmt.Println(protochecks.ToString(n))
 	for k := range n.Succ() {
 		if _, ok := k.Pred()[n]; !ok {
 			panic("panic")
 		}
-		succPrint(k)
+		if _, ok := printed[k]; ok {
+			fmt.Print(strings.Repeat("  ", depth + 1))
+			fmt.Println("[connects to: " + protochecks.ToString(k) + "]")
+		} else {
+			succPrint(k, depth + 1, printed)
+		}
 	}
-	fmt.Println("end child")
 }
 
 func main() {
@@ -55,10 +65,10 @@ func main() {
 	b := protochecks.NewBuilder()
 	start := protochecks.NewStartNode()
 	b.BlockToNode(c.Blocks[0], start)
-	succPrint(start)
+	printNodes(start)
 
-	fmt.Println(c.Format(fset))
-	fmt.Println("==================")
+	//fmt.Println(c.Format(fset))
+	//fmt.Println("==================")
 	// Print the AST.
-	ast.Print(fset, f)
+	//ast.Print(fset, f)
 }
