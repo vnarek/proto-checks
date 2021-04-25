@@ -161,27 +161,31 @@ func NewBuilder() *Builder {
 	}
 }
 
-func (b *Builder) FreshVar() string {
-	b.FreshVarCnt++
+func (b *Builder) SameFreshVar() string {
 	return "_t" + strconv.Itoa(b.FreshVarCnt)
 }
 
+func (b *Builder) NextFreshVar() string {
+	b.FreshVarCnt++
+	return b.SameFreshVar()
+}
+
 func (b *Builder) BlockToNode(block *cfg.Block, pred Node) {
-	blockFirst := pred
+	var blockFirst Node = nil //represents first node of this block
 	currLast := pred
 	for _, astNode := range block.Nodes {
 		first, last := b.astToNode(astNode)
 		if first != nil {
 			connect(currLast, first)
 			currLast = last
-			//if blockFirst == blockFirst, that means this is first node of this block
-			if blockFirst == pred {
+			//if blockFirst is nil, that means this is first node of this block
+			if blockFirst == nil {
 				blockFirst = first
 			}
 		}
 	}
 	//if current block hasn't created any new node, we skip this part
-	if blockFirst != pred {
+	if blockFirst != nil {
 		b.BlockNode[block] = blockFirst
 		connect(pred, blockFirst)
 	}
@@ -195,15 +199,6 @@ func (b *Builder) BlockToNode(block *cfg.Block, pred Node) {
 	}
 }
 
-//returns first and last node created by this AST node
-func (b *Builder) astToNode(a ast.Node) (first, last Node) {
-	switch a := a.(type) {
-	case *ast.AssignStmt:
-		first, last = b.assignStmtToNode(a, first, last)
-	}
-	return first, last
-}
-
 //appends node to first-last sequence of nodes and returns a new first-last sequence
 func (b *Builder) appendNode(n Node, f Node, l Node) (Node, Node) {
 	if f == nil {
@@ -213,41 +208,57 @@ func (b *Builder) appendNode(n Node, f Node, l Node) (Node, Node) {
 	return f, n
 }
 
-//extends current f and l node with new ones and returns new first-last sequence
-func (b *Builder) assignStmtToNode(stmt *ast.AssignStmt, f Node, l Node) (first, last Node) {
-	switch lhs := stmt.Lhs[0].(type) { // TODO: multivariable
-	case *ast.Ident:
-		first, last = b.assignRhsToNode(lhs.Name, stmt, f, l)
-	default:
-		panic("wtf?")
+//returns first and last node created by this AST node
+func (b *Builder) astToNode(a ast.Node) (first, last Node) {
+	switch a := a.(type) {
+	case *ast.AssignStmt:
+		//extends current first-last sequence with new nodes and returns new first-last sequence
+		first, last = b.assignLhsToNode(a.Lhs[0], a.Rhs[0], first, last)
 	}
 	return first, last
 }
 
-func (b *Builder) assignRhsToNode(lhs string, stmt *ast.AssignStmt, f Node, l Node) (first, last Node) {
-	switch rhs := stmt.Rhs[0].(type) {
+//decomposes lhs to string
+func (b *Builder) assignLhsToNode(lhsExp ast.Expr, rhsExp ast.Expr, f Node, l Node) (first, last Node) {
+	switch lhs := lhsExp.(type) {
+	case *ast.Ident:
+		first, last = b.assignRhsToNode(lhs.Name, rhsExp, f, l)
+	default:
+		panic("unknown assign lhs")
+	}
+	return first, last
+}
+
+func (b *Builder) assignRhsToNode(lhs string, rhsExp ast.Expr, f Node, l Node) (first, last Node) {
+	switch rhs := rhsExp.(type) {
 	case *ast.Ident:
 		if rhs.Name == "nil" {
-			first, last = b.appendNode(NewNullNode(lhs, stmt), f, l)
+			first, last = b.appendNode(NewNullNode(lhs, rhsExp), f, l)
 		} else {
-			first, last = b.appendNode(NewAssignNode(lhs, rhs.Name, stmt), f, l)
+			first, last = b.appendNode(NewAssignNode(lhs, rhs.Name, rhsExp), f, l)
 		}
 	case *ast.UnaryExpr:
 		if rhs.Op == token.AND { //&
-			id, ok := rhs.X.(*ast.Ident)
-			if !ok {
-				panic("expected ident")
+			switch id := rhs.X.(type) {
+			case *ast.Ident:
+				first, last = b.appendNode(NewRefNode(lhs, id.Name, rhsExp), f, l)
+			default: //recursive normalization for * and &
+				freshVar := b.NextFreshVar()
+				f, l = b.assignRhsToNode(freshVar, rhs.X, f, l)
+				first, last = b.appendNode(NewRefNode(lhs, freshVar, rhsExp), f, l)
 			}
-			first, last = b.appendNode(NewRefNode(lhs, id.Name, stmt), f, l)
 		}
 	case *ast.StarExpr:
 		switch id := rhs.X.(type) {
 		case *ast.Ident:
-			first, last = b.appendNode(NewPointerNode(lhs, id.Name, stmt), f, l)
-		case *ast.StarExpr:
-			//TODO: normalize rhs
-			//first, last = b.appendNode(NewPointerNode(b.FreshVar(), lhs, stmt), f, l)
+			first, last = b.appendNode(NewPointerNode(lhs, id.Name, rhsExp), f, l)
+		default: //recursive normalization for * and &
+			freshVar := b.NextFreshVar()
+			f, l = b.assignRhsToNode(freshVar, rhs.X, f, l)
+			first, last = b.appendNode(NewPointerNode(lhs, freshVar, rhsExp), f, l)
 		}
+	default:
+		panic("unknown assign rhs")
 	}
 	return first, last
 }

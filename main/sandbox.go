@@ -38,11 +38,11 @@ func main() {
 package main
 
 func main() {
-	for (false) {
-		a := *z
+	if (true) {
+		z = ***y
+	} else {
+		z = &*&y
 	}
-	z := nil
-	x = **z
 }
 `
 
