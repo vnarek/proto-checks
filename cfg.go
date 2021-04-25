@@ -111,6 +111,14 @@ type DerefNode struct {
 	rhs Variable
 }
 
+func NewDerefNode(lhs, rhs Variable, ast ast.Node) *DerefNode {
+	return &DerefNode{
+		cfgNode: newCfg(ast),
+		lhs:     lhs,
+		rhs:	 rhs,
+	}
+}
+
 // X = null
 type NullNode struct {
 	cfgNode
@@ -223,6 +231,32 @@ func (b *Builder) assignLhsToNode(lhsExp ast.Expr, rhsExp ast.Expr, f Node, l No
 	switch lhs := lhsExp.(type) {
 	case *ast.Ident:
 		first, last = b.assignRhsToNode(lhs.Name, rhsExp, f, l)
+	case *ast.StarExpr:
+		//check if we need to normalize lhs StarExpr even more
+		switch id := lhs.X.(type) {
+		case *ast.Ident: //no need to normalize
+			//now we'll peek the rhs
+			switch rhs := rhsExp.(type) {
+			case *ast.Ident:
+				if rhs.Name != "nil" {
+					return b.appendNode(NewDerefNode(id.Name, rhs.Name, rhsExp), f, l)
+				}
+				//if it's nil, we will need to normalize it
+			}
+			freshVar := b.NextFreshVar()
+			f, l = b.assignRhsToNode(freshVar, rhsExp, f, l)
+			first, last = b.appendNode(NewDerefNode(id.Name, freshVar, lhsExp), f, l)
+		default: //we need to normalize lhs StarExpr
+			freshVar := b.NextFreshVar()
+			//this will normalize lhs and store it in the freshVar
+			f, l = b.assignRhsToNode(freshVar, id, f ,l)
+			//this will set lhs ast to freshVar (which now represents normalized lhs)
+			lhs.X = ast.NewIdent(freshVar)
+			first, last = b.assignLhsToNode(lhs, rhsExp, f, l)
+		}
+	case *ast.UnaryExpr:
+		//TODO: normalization of the & operator
+		panic("unknown unary expr")
 	default:
 		panic("unknown assign lhs")
 	}

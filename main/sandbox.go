@@ -38,11 +38,9 @@ func main() {
 package main
 
 func main() {
-	if (true) {
-		z = ***y
-	} else {
-		z = &*&y
-	}
+	*a = nil
+	b = ***c
+	***d = e
 }
 `
 
