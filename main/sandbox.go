@@ -37,15 +37,10 @@ func main() {
 	src := `
 package main
 
-func main() { 
-	if (true) {
-	  x := &y
-	}
-	y := &z
-	for (false) {
-		a := *z
-	}
-	z := nil
+func main() {
+	*a = nil
+	b = ***c
+	***d = e
 }
 `
 

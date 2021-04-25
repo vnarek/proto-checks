@@ -1,5 +1,6 @@
 pod pojmem "variable" myslím Ident | SelectorExpr | IndexExpr | SliceExpr, kde Ident není "nil"
-pod pojmem "nil" myslím Ident, který je "nil"
+
+pod pojmem "nil" myslím Ident, který má název "nil"
 
 - BadStmt -> ignore
 - DeclStmt

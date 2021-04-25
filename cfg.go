@@ -3,6 +3,7 @@ package protochecks
 import (
 	"go/ast"
 	"go/token"
+	"strconv"
 
 	"golang.org/x/tools/go/cfg"
 )
@@ -36,8 +37,10 @@ func (c *cfgNode) Pred() map[Node]struct{} {
 }
 
 func connect(from, to Node) {
-	from.Succ()[to] = struct{}{}
-	to.Pred()[from] = struct{}{}
+	if from != nil && to != nil {
+		from.Succ()[to] = struct{}{}
+		to.Pred()[from] = struct{}{}
+	}
 }
 
 type StartNode struct {
@@ -108,6 +111,14 @@ type DerefNode struct {
 	rhs Variable
 }
 
+func NewDerefNode(lhs, rhs Variable, ast ast.Node) *DerefNode {
+	return &DerefNode{
+		cfgNode: newCfg(ast),
+		lhs:     lhs,
+		rhs:	 rhs,
+	}
+}
+
 // X = null
 type NullNode struct {
 	cfgNode
@@ -148,96 +159,140 @@ type Node interface {
 
 type Builder struct {
 	BlockNode map[*cfg.Block]Node
+	FreshVarCnt int
 }
 
 func NewBuilder() *Builder {
 	return &Builder{
 		BlockNode: make(map[*cfg.Block]Node),
+		FreshVarCnt: 0,
 	}
 }
 
-/*
-def blockToNode(block: Block, pred: CfgNode): Unit = {
-  //currPred = pred
-  //for ast in Nodes
-    //currPred = astToNode(ast, currPred)
-
-  //for succ in Succs
-    //je succ ve struktuře blocks?
-      //ANO: napoj currPred na blocks[succ]
-      //NE: res = blockToNode(succ, currPred); blocks[succ] = res;
+func (b *Builder) SameFreshVar() string {
+	return "_t" + strconv.Itoa(b.FreshVarCnt)
 }
-*/
+
+func (b *Builder) NextFreshVar() string {
+	b.FreshVarCnt++
+	return b.SameFreshVar()
+}
 
 func (b *Builder) BlockToNode(block *cfg.Block, pred Node) {
-	first := pred
-	currPred := pred
+	var blockFirst Node = nil //represents first node of this block
+	currLast := pred
 	for _, astNode := range block.Nodes {
-		f, l := b.astToNode(astNode, currPred)
-		if f != nil {
-			if first == pred {
-				first = f
+		first, last := b.astToNode(astNode)
+		if first != nil {
+			connect(currLast, first)
+			currLast = last
+			//if blockFirst is nil, that means this is first node of this block
+			if blockFirst == nil {
+				blockFirst = first
 			}
-			currPred = l
 		}
 	}
-	//don't store blocks, that had no nodes
-	if first != pred {
-		b.BlockNode[block] = first
+	//if current block hasn't created any new node, we skip this part
+	if blockFirst != nil {
+		b.BlockNode[block] = blockFirst
+		connect(pred, blockFirst)
 	}
 	for _, suc := range block.Succs {
 		n, ok := b.BlockNode[suc]
 		if ok {
-			connect(currPred, n)
+			connect(currLast, n)
 			continue
 		}
-		b.BlockToNode(suc, currPred)
+		b.BlockToNode(suc, currLast)
 	}
 }
 
-func (b *Builder) astToNode(a ast.Node, pred Node) (first, last Node) {
+//appends node to first-last sequence of nodes and returns a new first-last sequence
+func (b *Builder) appendNode(n Node, f Node, l Node) (Node, Node) {
+	if f == nil {
+		return n, n
+	}
+	connect(l, n)
+	return f, n
+}
+
+//returns first and last node created by this AST node
+func (b *Builder) astToNode(a ast.Node) (first, last Node) {
 	switch a := a.(type) {
 	case *ast.AssignStmt:
-		first, last = b.assignStmtToNode(a)
-	case *ast.ReturnStmt:
-	}
-	if first != nil {
-		connect(pred, first)
+		//extends current first-last sequence with new nodes and returns new first-last sequence
+		first, last = b.assignLhsToNode(a.Lhs[0], a.Rhs[0], first, last)
 	}
 	return first, last
 }
 
-func (b *Builder) assignStmtToNode(stmt *ast.AssignStmt) (first, last Node) {
-	switch lhs := stmt.Lhs[0].(type) { // TODO: multivariable
+//decomposes lhs to string
+func (b *Builder) assignLhsToNode(lhsExp ast.Expr, rhsExp ast.Expr, f Node, l Node) (first, last Node) {
+	switch lhs := lhsExp.(type) {
 	case *ast.Ident:
-		switch rhs := stmt.Rhs[0].(type) {
-		case *ast.Ident:
-			if rhs.Name == "nil" {
-				n := NewNullNode(lhs.Name, stmt)
-				return n, n
-			} else {
-				n := NewAssignNode(lhs.Name, rhs.Name, stmt)
-				return n, n
-			}
-		case *ast.UnaryExpr:
-			if rhs.Op == token.AND { //&
-				id, ok := rhs.X.(*ast.Ident)
-				if !ok {
-					panic("expected ident")
+		first, last = b.assignRhsToNode(lhs.Name, rhsExp, f, l)
+	case *ast.StarExpr:
+		//check if we need to normalize lhs StarExpr even more
+		switch id := lhs.X.(type) {
+		case *ast.Ident: //no need to normalize
+			//now we'll peek the rhs
+			switch rhs := rhsExp.(type) {
+			case *ast.Ident:
+				if rhs.Name != "nil" {
+					return b.appendNode(NewDerefNode(id.Name, rhs.Name, rhsExp), f, l)
 				}
-				n := NewRefNode(lhs.Name, id.Name, stmt)
-				return n, n
+				//if it's nil, we will need to normalize it
 			}
-		case *ast.StarExpr:
+			freshVar := b.NextFreshVar()
+			f, l = b.assignRhsToNode(freshVar, rhsExp, f, l)
+			first, last = b.appendNode(NewDerefNode(id.Name, freshVar, lhsExp), f, l)
+		default: //we need to normalize lhs StarExpr
+			freshVar := b.NextFreshVar()
+			//this will normalize lhs and store it in the freshVar
+			f, l = b.assignRhsToNode(freshVar, id, f ,l)
+			//this will set lhs ast to freshVar (which now represents normalized lhs)
+			lhs.X = ast.NewIdent(freshVar)
+			first, last = b.assignLhsToNode(lhs, rhsExp, f, l)
+		}
+	case *ast.UnaryExpr:
+		//TODO: normalization of the & operator
+		panic("unknown unary expr")
+	default:
+		panic("unknown assign lhs")
+	}
+	return first, last
+}
+
+func (b *Builder) assignRhsToNode(lhs string, rhsExp ast.Expr, f Node, l Node) (first, last Node) {
+	switch rhs := rhsExp.(type) {
+	case *ast.Ident:
+		if rhs.Name == "nil" {
+			first, last = b.appendNode(NewNullNode(lhs, rhsExp), f, l)
+		} else {
+			first, last = b.appendNode(NewAssignNode(lhs, rhs.Name, rhsExp), f, l)
+		}
+	case *ast.UnaryExpr:
+		if rhs.Op == token.AND { //&
 			switch id := rhs.X.(type) {
 			case *ast.Ident:
-				n := NewPointerNode(lhs.Name, id.Name, stmt)
-				return n, n
+				first, last = b.appendNode(NewRefNode(lhs, id.Name, rhsExp), f, l)
+			default: //recursive normalization for * and &
+				freshVar := b.NextFreshVar()
+				f, l = b.assignRhsToNode(freshVar, rhs.X, f, l)
+				first, last = b.appendNode(NewRefNode(lhs, freshVar, rhsExp), f, l)
 			}
 		}
-
+	case *ast.StarExpr:
+		switch id := rhs.X.(type) {
+		case *ast.Ident:
+			first, last = b.appendNode(NewPointerNode(lhs, id.Name, rhsExp), f, l)
+		default: //recursive normalization for * and &
+			freshVar := b.NextFreshVar()
+			f, l = b.assignRhsToNode(freshVar, rhs.X, f, l)
+			first, last = b.appendNode(NewPointerNode(lhs, freshVar, rhsExp), f, l)
+		}
 	default:
-		panic("wtf?")
+		panic("unknown assign rhs")
 	}
-	return nil, nil
+	return first, last
 }
