@@ -59,6 +59,13 @@ type AllocNode struct {
 	lhs Variable
 }
 
+func NewAllocNode(lhs Variable, ast ast.Node) *AllocNode {
+	return &AllocNode{
+		cfgNode: newCfg(ast),
+		lhs:     lhs,
+	}
+}
+
 // X_1 = &X_2
 type RefNode struct {
 	cfgNode
@@ -146,6 +153,8 @@ func ToString(node Node) string {
 		return "[*" + n.lhs + " = " + n.rhs + "]"
 	case *NullNode:
 		return "[" + n.lhs + " = null]"
+	case *AllocNode:
+		return "[" + n.lhs + " = alloc]"
 	default:
 		panic("unimplemented print")
 	}
@@ -222,6 +231,8 @@ func (b *Builder) astToNode(a ast.Node) (first, last Node) {
 	case *ast.AssignStmt:
 		//extends current first-last sequence with new nodes and returns new first-last sequence
 		first, last = b.assignLhsToNode(a.Lhs[0], a.Rhs[0], first, last)
+	case *ast.ValueSpec: //for example [var int* x] or [var int* x = new(1)]
+		first, last = b.declToNode(a, first, last)
 	}
 	return first, last
 }
@@ -293,6 +304,25 @@ func (b *Builder) assignRhsToNode(lhs string, rhsExp ast.Expr, f Node, l Node) (
 		}
 	default:
 		panic("unknown assign rhs")
+	}
+	return first, last
+}
+
+func (b *Builder) declToNode(decl *ast.ValueSpec, f Node, l Node) (first, last Node) {
+	switch exp := decl.Type.(type) {
+	case *ast.StarExpr: //we only care about pointer decls
+		switch id := exp.X.(type) {
+		case *ast.Ident:
+			if decl.Values == nil {
+				first, last = b.appendNode(NewNullNode(id.Name, decl), f, l)
+			} else {
+				first, last = b.appendNode(NewAllocNode(id.Name, decl), f, l)
+			}
+		case *ast.StarExpr:
+			//we'll probably have to rewrite this function because of this case
+			//first, we will count how many levels of indirection there is and then normalize it appropriately
+			panic("unhandled double pointer declaration")
+		}
 	}
 	return first, last
 }

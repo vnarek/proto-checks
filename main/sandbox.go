@@ -38,9 +38,8 @@ func main() {
 package main
 
 func main() {
-	*a = nil
-	b = ***c
-	***d = e
+	var int* x = new(5);
+	var int* y;
 }
 `
 
