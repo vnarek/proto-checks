@@ -249,10 +249,7 @@ func (b *Builder) assignLhsToNode(lhsExp ast.Expr, rhsExp ast.Expr, f Node, l No
 			//now we'll peek the rhs
 			switch rhs := rhsExp.(type) {
 			case *ast.Ident:
-				if rhs.Name != "nil" {
-					return b.appendNode(NewDerefNode(id.Name, rhs.Name, rhsExp), f, l)
-				}
-				//if it's nil, we will need to normalize it
+				return b.appendNode(NewDerefNode(id.Name, rhs.Name, rhsExp), f, l)
 			}
 			freshVar := b.NextFreshVar()
 			f, l = b.assignRhsToNode(freshVar, rhsExp, f, l)
@@ -266,10 +263,7 @@ func (b *Builder) assignLhsToNode(lhsExp ast.Expr, rhsExp ast.Expr, f Node, l No
 			first, last = b.assignLhsToNode(lhs, rhsExp, f, l)
 		}
 	case *ast.UnaryExpr:
-		//TODO: normalization of the & operator
-		panic("unknown unary expr")
-	default:
-		panic("unknown assign lhs")
+		//TODO: is & operator possible here as a lhs? In c++ it's not possible, because result of &var is not lvalue
 	}
 	return first, last
 }
@@ -302,27 +296,40 @@ func (b *Builder) assignRhsToNode(lhs string, rhsExp ast.Expr, f Node, l Node) (
 			f, l = b.assignRhsToNode(freshVar, rhs.X, f, l)
 			first, last = b.appendNode(NewPointerNode(lhs, freshVar, rhsExp), f, l)
 		}
-	default:
-		panic("unknown assign rhs")
+	case *ast.FuncLit:
+		//TODO: check what's return type of function and if there is any need to normalize, then create AllocNode
+		panic("unimplemented FuncLit as lhs of assign")
+	case *ast.CallExpr:
+		//TODO: dunno what to do here - assume there's no normalization needed and create AllocNode?
+		panic("unimplemented CallExpr as lhs of assign")
 	}
 	return first, last
 }
 
-func (b *Builder) declToNode(decl *ast.ValueSpec, f Node, l Node) (first, last Node) {
-	switch exp := decl.Type.(type) {
-	case *ast.StarExpr: //we only care about pointer decls
-		switch id := exp.X.(type) {
+func (b *Builder) declToNode(spec *ast.ValueSpec, f Node, l Node) (first, last Node) {
+	decl := spec.Type
+	//i will be the level of * indirection
+	for i := 0;; i++ {
+		switch expr := decl.(type) {
 		case *ast.Ident:
-			if decl.Values == nil {
-				first, last = b.appendNode(NewNullNode(id.Name, decl), f, l)
-			} else {
-				first, last = b.appendNode(NewAllocNode(id.Name, decl), f, l)
+			//only if there is at least one * reference we will create nodes
+			if i > 0 {
+				currVar := expr.Name
+				//if i > 1, we will need to normalize
+				for ; i > 1; i-- {
+					freshVar := b.NextFreshVar()
+					f, l = b.appendNode(NewRefNode(currVar, freshVar, expr), f, l)
+					currVar = freshVar
+				}
+				if spec.Values == nil {
+					first, last = b.appendNode(NewNullNode(currVar, decl), f, l)
+				} else {
+					first, last = b.appendNode(NewAllocNode(currVar, decl), f, l)
+				}
 			}
+			return first, last
 		case *ast.StarExpr:
-			//we'll probably have to rewrite this function because of this case
-			//first, we will count how many levels of indirection there is and then normalize it appropriately
-			panic("unhandled double pointer declaration")
+			decl = expr.X
 		}
 	}
-	return first, last
 }

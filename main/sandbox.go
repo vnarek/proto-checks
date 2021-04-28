@@ -40,6 +40,10 @@ package main
 func main() {
 	var int* x = new(5);
 	var int* y;
+	var int*** z = new(420);
+	var int ignore;
+	a := x+4
+	b := new(5)
 }
 `
 
