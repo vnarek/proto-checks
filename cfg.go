@@ -262,8 +262,6 @@ func (b *Builder) assignLhsToNode(lhsExp ast.Expr, rhsExp ast.Expr, f Node, l No
 			lhs.X = ast.NewIdent(freshVar)
 			first, last = b.assignLhsToNode(lhs, rhsExp, f, l)
 		}
-	case *ast.UnaryExpr:
-		//TODO: is & operator possible here as a lhs? In c++ it's not possible, because result of &var is not lvalue
 	}
 	return first, last
 }
@@ -297,11 +295,13 @@ func (b *Builder) assignRhsToNode(lhs string, rhsExp ast.Expr, f Node, l Node) (
 			first, last = b.appendNode(NewPointerNode(lhs, freshVar, rhsExp), f, l)
 		}
 	case *ast.FuncLit:
-		//TODO: check what's return type of function and if there is any need to normalize, then create AllocNode
-		panic("unimplemented FuncLit as lhs of assign")
+		//TODO: see CallExpr, basically the same problem
+		first, last = b.appendNode(NewAllocNode(lhs, rhsExp), f, l)
 	case *ast.CallExpr:
-		//TODO: dunno what to do here - assume there's no normalization needed and create AllocNode?
-		panic("unimplemented CallExpr as lhs of assign")
+		//TODO: dunno what to do here..
+		//		assume there's no normalization needed and create AllocNode (what if the function returns double pointer)?
+		//		I guess for now, yes..
+		first, last = b.appendNode(NewAllocNode(lhs, rhsExp), f, l)
 	}
 	return first, last
 }
