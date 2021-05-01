@@ -1,8 +1,9 @@
 package main
 
-//infinite loop
 func main() {
 	x = *y
-	// var x = *y // hier
 	x := *y
+	var x *int = *y
+	var x = *y
+	x = (((*y)))
 }

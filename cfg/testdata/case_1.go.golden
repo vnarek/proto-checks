@@ -1,2 +1,6 @@
 [START]
   [x = alloc]
+    [x = alloc]
+      [x = alloc]
+        [x = alloc]
+          [x = alloc]

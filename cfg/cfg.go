@@ -250,6 +250,8 @@ func (b *Builder) astToNode(a ast.Node) (first, last Node) {
 //decomposes lhs to string
 func (b *Builder) assignLhsToNode(lhsExp ast.Expr, rhsExp ast.Expr, f Node, l Node) (first, last Node) {
 	switch lhs := lhsExp.(type) {
+	case *ast.ParenExpr:
+		first, last = b.assignLhsToNode(lhs.X, rhsExp, f, l)
 	case *ast.Ident:
 		first, last = b.assignRhsToNode(lhs.Name, rhsExp, f, l)
 	case *ast.StarExpr:
@@ -262,8 +264,11 @@ func (b *Builder) assignLhsToNode(lhsExp ast.Expr, rhsExp ast.Expr, f Node, l No
 				return b.appendNode(NewDerefNode(id.Name, rhs.Name, rhsExp), f, l)
 			}
 			freshVar := b.NextFreshVar()
-			f, l = b.assignRhsToNode(freshVar, rhsExp, f, l)
-			first, last = b.appendNode(NewDerefNode(id.Name, freshVar, lhsExp), f, l)
+			newF, newL := b.assignRhsToNode(freshVar, rhsExp, f, l)
+			//only if new nodes were created we will append DerefNode
+			if newF != f || newL != l {
+				first, last = b.appendNode(NewDerefNode(id.Name, freshVar, lhsExp), newF, newL)
+			}
 		default: //we need to normalize lhs StarExpr
 			freshVar := b.NextFreshVar()
 			//this will normalize lhs and store it in the freshVar
@@ -278,6 +283,8 @@ func (b *Builder) assignLhsToNode(lhsExp ast.Expr, rhsExp ast.Expr, f Node, l No
 
 func (b *Builder) assignRhsToNode(lhs string, rhsExp ast.Expr, f Node, l Node) (first, last Node) {
 	switch rhs := rhsExp.(type) {
+	case *ast.ParenExpr:
+		first, last = b.assignRhsToNode(lhs, rhs.X, f, l)
 	case *ast.Ident:
 		if rhs.Name == "nil" {
 			first, last = b.appendNode(NewNullNode(lhs, rhsExp), f, l)
@@ -317,6 +324,39 @@ func (b *Builder) assignRhsToNode(lhs string, rhsExp ast.Expr, f Node, l Node) (
 }
 
 func (b *Builder) declToNode(spec *ast.ValueSpec, f Node, l Node) (first, last Node) {
+	//first, we need to count the number of * references of spec's type
+	refCount := 1 //if type is undefined, we assume that there's one * reference
+	stop := false
+	if spec.Type != nil {
+		specType := spec.Type
+		for i := 0; !stop; i++ {
+			switch expr := specType.(type) {
+			case *ast.StarExpr:
+				specType = expr.X
+			default:
+				refCount = i
+				stop = true
+			}
+		}
+	}
+
+	//only create nodes if there is at least one level of * reference
+	if refCount > 0 {
+		//normalize more than 1 * reference
+		currVar := spec.Names[0].Name
+		for i := 1; i < refCount; i++ {
+			freshVar := b.NextFreshVar()
+			f, l = b.appendNode(NewRefNode(currVar, freshVar, spec), f, l)
+			currVar = freshVar
+		}
+		if spec.Values == nil {
+			first, last = b.appendNode(NewNullNode(currVar, spec), f, l)
+		} else {
+			first, last = b.assignRhsToNode(currVar, spec.Values[0], f, l)
+		}
+	}
+	return first, last
+	/*
 	decl := spec.Type
 	//i will be the level of * indirection
 	for i := 0; ; i++ {
@@ -341,5 +381,5 @@ func (b *Builder) declToNode(spec *ast.ValueSpec, f Node, l Node) (first, last N
 		case *ast.StarExpr:
 			decl = expr.X
 		}
-	}
+	}*/
 }

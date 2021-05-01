@@ -1,0 +1,8 @@
+[START]
+  [x = alloc]
+    [max = alloc]
+      [i = *x]
+        [x = &i]
+          [connects to: [x = &i]]
+          [x = null]
+        [connects to: [x = null]]

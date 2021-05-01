@@ -1,8 +1,9 @@
 package main
 
-//wrong
 func main() {
-	x := nil
 	x = nil
-	// var x *int // hier
+	x := nil
+	var x *int = nil
+	var x *int
+	x = (((nil)))
 }
