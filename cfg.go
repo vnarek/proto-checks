@@ -8,15 +8,20 @@ import (
 	"golang.org/x/tools/go/cfg"
 )
 
+var cnt = 0
+
 type cfgNode struct {
 	ast  ast.Node
+	id int
 	succ map[Node]struct{}
 	pred map[Node]struct{}
 }
 
 func newCfg(ast ast.Node) cfgNode {
+	cnt++
 	return cfgNode{
 		ast:  ast,
+		id: cnt - 1,
 		succ: make(map[Node]struct{}),
 		pred: make(map[Node]struct{}),
 	}
@@ -26,6 +31,10 @@ type Variable = string
 
 func (c *cfgNode) AST() ast.Node {
 	return c.ast
+}
+
+func (c *cfgNode) Id() int {
+	return c.id
 }
 
 func (c *cfgNode) Succ() map[Node]struct{} {
@@ -162,6 +171,7 @@ func ToString(node Node) string {
 
 type Node interface {
 	AST() ast.Node
+	Id() int
 	Succ() map[Node]struct{}
 	Pred() map[Node]struct{}
 }

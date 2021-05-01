@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"sort"
 	"strings"
 
 	protochecks "github.com/vnarek/proto-checks"
@@ -19,7 +20,16 @@ func succPrint(n protochecks.Node, depth int, printed map[protochecks.Node]struc
 	printed[n] = struct{}{}
 	fmt.Print(strings.Repeat("  ", depth))
 	fmt.Println(protochecks.ToString(n))
-	for k := range n.Succ() {
+	succArr := make([]protochecks.Node, 0, len(n.Succ()))
+
+	for i := range n.Succ() {
+		succArr = append(succArr, i)
+	}
+	sort.Slice(succArr, func(i, j int) bool {
+		return succArr[i].Id() < succArr[j].Id()
+	})
+
+	for _, k := range succArr {
 		if _, ok := k.Pred()[n]; !ok {
 			panic("panic")
 		}
@@ -38,12 +48,10 @@ func main() {
 package main
 
 func main() {
-	var int* x = new(5);
-	var int* y;
-	var int*** z = new(420);
-	var int ignore;
-	a := x+4
-	b := new(5)
+	if x := y; x < 5 {
+		a = b
+	} else { c = d}
+	j = *x
 }
 `
 
