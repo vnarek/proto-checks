@@ -1,4 +1,4 @@
-package protochecks
+package cfg
 
 import (
 	"go/ast"
@@ -12,7 +12,7 @@ var cnt = 0
 
 type cfgNode struct {
 	ast  ast.Node
-	id int
+	id   int
 	succ map[Node]struct{}
 	pred map[Node]struct{}
 }
@@ -21,7 +21,7 @@ func newCfg(ast ast.Node) cfgNode {
 	cnt++
 	return cfgNode{
 		ast:  ast,
-		id: cnt - 1,
+		id:   cnt - 1,
 		succ: make(map[Node]struct{}),
 		pred: make(map[Node]struct{}),
 	}
@@ -131,7 +131,7 @@ func NewDerefNode(lhs, rhs Variable, ast ast.Node) *DerefNode {
 	return &DerefNode{
 		cfgNode: newCfg(ast),
 		lhs:     lhs,
-		rhs:	 rhs,
+		rhs:     rhs,
 	}
 }
 
@@ -177,13 +177,13 @@ type Node interface {
 }
 
 type Builder struct {
-	BlockNode map[*cfg.Block]Node
+	BlockNode   map[*cfg.Block]Node
 	FreshVarCnt int
 }
 
 func NewBuilder() *Builder {
 	return &Builder{
-		BlockNode: make(map[*cfg.Block]Node),
+		BlockNode:   make(map[*cfg.Block]Node),
 		FreshVarCnt: 0,
 	}
 }
@@ -267,7 +267,7 @@ func (b *Builder) assignLhsToNode(lhsExp ast.Expr, rhsExp ast.Expr, f Node, l No
 		default: //we need to normalize lhs StarExpr
 			freshVar := b.NextFreshVar()
 			//this will normalize lhs and store it in the freshVar
-			f, l = b.assignRhsToNode(freshVar, id, f ,l)
+			f, l = b.assignRhsToNode(freshVar, id, f, l)
 			//this will set lhs ast to freshVar (which now represents normalized lhs)
 			lhs.X = ast.NewIdent(freshVar)
 			first, last = b.assignLhsToNode(lhs, rhsExp, f, l)
@@ -319,7 +319,7 @@ func (b *Builder) assignRhsToNode(lhs string, rhsExp ast.Expr, f Node, l Node) (
 func (b *Builder) declToNode(spec *ast.ValueSpec, f Node, l Node) (first, last Node) {
 	decl := spec.Type
 	//i will be the level of * indirection
-	for i := 0;; i++ {
+	for i := 0; ; i++ {
 		switch expr := decl.(type) {
 		case *ast.Ident:
 			//only if there is at least one * reference we will create nodes

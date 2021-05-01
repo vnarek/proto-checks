@@ -1,46 +1,13 @@
 package main
 
 import (
-	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"sort"
-	"strings"
 
-	protochecks "github.com/vnarek/proto-checks"
+	normalizeCfg "github.com/vnarek/proto-checks/cfg"
 	"golang.org/x/tools/go/cfg"
 )
-
-func printNodes(n protochecks.Node) {
-	succPrint(n, 0, make(map[protochecks.Node]struct{}))
-}
-
-func succPrint(n protochecks.Node, depth int, printed map[protochecks.Node]struct{}) {
-	printed[n] = struct{}{}
-	fmt.Print(strings.Repeat("  ", depth))
-	fmt.Println(protochecks.ToString(n))
-	succArr := make([]protochecks.Node, 0, len(n.Succ()))
-
-	for i := range n.Succ() {
-		succArr = append(succArr, i)
-	}
-	sort.Slice(succArr, func(i, j int) bool {
-		return succArr[i].Id() < succArr[j].Id()
-	})
-
-	for _, k := range succArr {
-		if _, ok := k.Pred()[n]; !ok {
-			panic("panic")
-		}
-		if _, ok := printed[k]; ok {
-			fmt.Print(strings.Repeat("  ", depth + 1))
-			fmt.Println("[connects to: " + protochecks.ToString(k) + "]")
-		} else {
-			succPrint(k, depth + 1, printed)
-		}
-	}
-}
 
 func main() {
 	// src is the input for which we want to print the AST.
@@ -48,10 +15,7 @@ func main() {
 package main
 
 func main() {
-	if x := y; x < 5 {
-		a = b
-	} else { c = d}
-	j = *x
+	var int *x = new(1)
 }
 `
 
@@ -71,10 +35,10 @@ func main() {
 		funDecl.Body,
 		func(ce *ast.CallExpr) bool { return true },
 	)
-	b := protochecks.NewBuilder()
-	start := protochecks.NewStartNode()
+	b := normalizeCfg.NewBuilder()
+	start := normalizeCfg.NewStartNode()
 	b.BlockToNode(c.Blocks[0], start)
-	printNodes(start)
+	normalizeCfg.PrintNodes(start)
 
 	//fmt.Println(c.Format(fset))
 	//fmt.Println("==================")
