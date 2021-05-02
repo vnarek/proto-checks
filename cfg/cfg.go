@@ -4,8 +4,6 @@ import (
 	"go/ast"
 	"go/token"
 	"strconv"
-
-	"golang.org/x/tools/go/cfg"
 )
 
 var cnt = 0
@@ -13,8 +11,6 @@ var cnt = 0
 type cfgNode struct {
 	ast  ast.Node
 	id   int
-	succ map[Node]struct{}
-	pred map[Node]struct{}
 }
 
 func newCfg(ast ast.Node) cfgNode {
@@ -22,8 +18,6 @@ func newCfg(ast ast.Node) cfgNode {
 	return cfgNode{
 		ast:  ast,
 		id:   cnt - 1,
-		succ: make(map[Node]struct{}),
-		pred: make(map[Node]struct{}),
 	}
 }
 
@@ -35,31 +29,6 @@ func (c *cfgNode) AST() ast.Node {
 
 func (c *cfgNode) Id() int {
 	return c.id
-}
-
-func (c *cfgNode) Succ() map[Node]struct{} {
-	return c.succ
-}
-
-func (c *cfgNode) Pred() map[Node]struct{} {
-	return c.pred
-}
-
-func connect(from, to Node) {
-	if from != nil && to != nil {
-		from.Succ()[to] = struct{}{}
-		to.Pred()[from] = struct{}{}
-	}
-}
-
-type StartNode struct {
-	cfgNode
-}
-
-func NewStartNode() *StartNode {
-	return &StartNode{
-		cfgNode: newCfg(nil),
-	}
 }
 
 // X = alloc P
@@ -150,8 +119,6 @@ func NewNullNode(lhs Variable, ast ast.Node) *NullNode {
 
 func ToString(node Node) string {
 	switch n := node.(type) {
-	case *StartNode:
-		return "[START]"
 	case *RefNode:
 		return "[" + n.lhs + " = &" + n.rhs + "]"
 	case *AssignNode:
@@ -172,88 +139,104 @@ func ToString(node Node) string {
 type Node interface {
 	AST() ast.Node
 	Id() int
-	Succ() map[Node]struct{}
-	Pred() map[Node]struct{}
 }
 
 type Builder struct {
-	BlockNode   map[*cfg.Block]Node
 	FreshVarCnt int
 }
 
 func NewBuilder() *Builder {
 	return &Builder{
-		BlockNode:   make(map[*cfg.Block]Node),
 		FreshVarCnt: 0,
 	}
 }
 
-func (b *Builder) SameFreshVar() string {
+func (b *Builder) sameFreshVar() string {
 	return "_t" + strconv.Itoa(b.FreshVarCnt)
 }
 
-func (b *Builder) NextFreshVar() string {
+func (b *Builder) nextFreshVar() string {
 	b.FreshVarCnt++
-	return b.SameFreshVar()
+	return b.sameFreshVar()
 }
 
-func (b *Builder) BlockToNode(block *cfg.Block, pred Node) {
-	var blockFirst Node = nil //represents first node of this block
-	currLast := pred
-	for _, astNode := range block.Nodes {
-		first, last := b.astToNode(astNode)
-		if first != nil {
-			connect(currLast, first)
-			currLast = last
-			//if blockFirst is nil, that means this is first node of this block
-			if blockFirst == nil {
-				blockFirst = first
-			}
-		}
-	}
-	//if current block hasn't created any new node, we skip this part
-	if blockFirst != nil {
-		b.BlockNode[block] = blockFirst
-		connect(pred, blockFirst)
-	}
-	for _, suc := range block.Succs {
-		n, ok := b.BlockNode[suc]
-		if ok {
-			connect(currLast, n)
-			continue
-		}
-		b.BlockToNode(suc, currLast)
-	}
+func (b *Builder) GetNodes(a ast.Node) []Node {
+	var nodes []Node
+	return b.astToNode(a, nodes)
 }
 
-//appends node to first-last sequence of nodes and returns a new first-last sequence
-func (b *Builder) appendNode(n Node, f Node, l Node) (Node, Node) {
-	if f == nil {
-		return n, n
-	}
-	connect(l, n)
-	return f, n
-}
 
-//returns first and last node created by this AST node
-func (b *Builder) astToNode(a ast.Node) (first, last Node) {
+func (b *Builder) astToNode(a ast.Node, nodes []Node) []Node {
 	switch a := a.(type) {
+	case *ast.DeclStmt:
+		nodes = b.astToNode(a.Decl, nodes)
+	case *ast.GenDecl:
+		for _, subStmt := range a.Specs {
+			nodes = b.astToNode(subStmt, nodes)
+		}
+	case *ast.LabeledStmt:
+		nodes = b.astToNode(a.Stmt, nodes)
+	case *ast.BlockStmt:
+		for _, subStmt := range a.List {
+			nodes = b.astToNode(subStmt, nodes)
+		}
+	case *ast.IfStmt:
+		if a.Init != nil {
+			nodes = b.astToNode(a.Init, nodes)
+		}
+		nodes = b.astToNode(a.Body, nodes)
+		if a.Else != nil {
+			nodes = b.astToNode(a.Else, nodes)
+		}
+	case *ast.CaseClause:
+		for _, subStmt := range a.Body {
+			nodes = b.astToNode(subStmt, nodes)
+		}
+	case *ast.SwitchStmt:
+		if a.Init != nil {
+			nodes = b.astToNode(a.Init, nodes)
+		}
+		nodes = b.astToNode(a.Body, nodes)
+	case *ast.TypeSwitchStmt:
+		if a.Init != nil {
+			nodes = b.astToNode(a.Init, nodes)
+		}
+		nodes = b.astToNode(a.Assign, nodes)
+		nodes = b.astToNode(a.Body, nodes)
+	case *ast.CommClause:
+		if a.Comm != nil {
+			nodes = b.astToNode(a.Comm, nodes)
+		}
+		for _, subStmt := range a.Body {
+			nodes = b.astToNode(subStmt, nodes)
+		}
+	case *ast.SelectStmt:
+		nodes = b.astToNode(a.Body, nodes)
+	case *ast.ForStmt:
+		if a.Init != nil {
+			nodes = b.astToNode(a.Init, nodes)
+		}
+		if a.Post != nil {
+			nodes = b.astToNode(a.Post, nodes)
+		}
+		nodes = b.astToNode(a.Body, nodes)
+	case *ast.RangeStmt:
+		nodes = b.astToNode(a.Body, nodes)
 	case *ast.AssignStmt:
-		//extends current first-last sequence with new nodes and returns new first-last sequence
-		first, last = b.assignLhsToNode(a.Lhs[0], a.Rhs[0], first, last)
+		nodes = b.assignLhsToNode(a.Lhs[0], a.Rhs[0], nodes)
 	case *ast.ValueSpec: //for example [var int* x] or [var int* x = new(1)]
-		first, last = b.declToNode(a, first, last)
+		nodes = b.declToNode(a, nodes)
 	}
-	return first, last
+	return nodes
 }
 
 //decomposes lhs to string
-func (b *Builder) assignLhsToNode(lhsExp ast.Expr, rhsExp ast.Expr, f Node, l Node) (first, last Node) {
+func (b *Builder) assignLhsToNode(lhsExp ast.Expr, rhsExp ast.Expr, nodes []Node) []Node {
 	switch lhs := lhsExp.(type) {
 	case *ast.ParenExpr:
-		first, last = b.assignLhsToNode(lhs.X, rhsExp, f, l)
+		nodes = b.assignLhsToNode(lhs.X, rhsExp, nodes)
 	case *ast.Ident:
-		first, last = b.assignRhsToNode(lhs.Name, rhsExp, f, l)
+		nodes = b.assignRhsToNode(lhs.Name, rhsExp, nodes)
 	case *ast.StarExpr:
 		//check if we need to normalize lhs StarExpr even more
 		switch id := lhs.X.(type) {
@@ -261,69 +244,71 @@ func (b *Builder) assignLhsToNode(lhsExp ast.Expr, rhsExp ast.Expr, f Node, l No
 			//now we'll peek the rhs
 			switch rhs := rhsExp.(type) {
 			case *ast.Ident:
-				return b.appendNode(NewDerefNode(id.Name, rhs.Name, rhsExp), f, l)
+				nodes = append(nodes, NewDerefNode(id.Name, rhs.Name, rhsExp))
+				return nodes
 			}
-			freshVar := b.NextFreshVar()
-			newF, newL := b.assignRhsToNode(freshVar, rhsExp, f, l)
+			freshVar := b.nextFreshVar()
+			prevLen := len(nodes)
+			nodes = b.assignRhsToNode(freshVar, rhsExp, nodes)
 			//only if new nodes were created we will append DerefNode
-			if newF != f || newL != l {
-				first, last = b.appendNode(NewDerefNode(id.Name, freshVar, lhsExp), newF, newL)
+			if prevLen != len(nodes) {
+				nodes = append(nodes, NewDerefNode(id.Name, freshVar, lhsExp))
 			}
 		default: //we need to normalize lhs StarExpr
-			freshVar := b.NextFreshVar()
+			freshVar := b.nextFreshVar()
 			//this will normalize lhs and store it in the freshVar
-			f, l = b.assignRhsToNode(freshVar, id, f, l)
+			nodes = b.assignRhsToNode(freshVar, id, nodes)
 			//this will set lhs ast to freshVar (which now represents normalized lhs)
 			lhs.X = ast.NewIdent(freshVar)
-			first, last = b.assignLhsToNode(lhs, rhsExp, f, l)
+			nodes = b.assignLhsToNode(lhs, rhsExp, nodes)
 		}
 	}
-	return first, last
+	return nodes
 }
 
-func (b *Builder) assignRhsToNode(lhs string, rhsExp ast.Expr, f Node, l Node) (first, last Node) {
+func (b *Builder) assignRhsToNode(lhs string, rhsExp ast.Expr, nodes []Node) []Node {
 	switch rhs := rhsExp.(type) {
 	case *ast.ParenExpr:
-		first, last = b.assignRhsToNode(lhs, rhs.X, f, l)
+		nodes = b.assignRhsToNode(lhs, rhs.X, nodes)
 	case *ast.Ident:
 		if rhs.Name == "nil" {
-			first, last = b.appendNode(NewNullNode(lhs, rhsExp), f, l)
+			nodes = append(nodes, NewNullNode(lhs, rhsExp))
 		} else {
-			first, last = b.appendNode(NewAssignNode(lhs, rhs.Name, rhsExp), f, l)
+			nodes = append(nodes, NewAssignNode(lhs, rhs.Name, rhsExp))
 		}
 	case *ast.UnaryExpr:
 		if rhs.Op == token.AND { //&
 			switch id := rhs.X.(type) {
 			case *ast.Ident:
-				first, last = b.appendNode(NewRefNode(lhs, id.Name, rhsExp), f, l)
+				nodes = append(nodes, NewRefNode(lhs, id.Name, rhsExp))
 			default: //recursive normalization for * and &
-				freshVar := b.NextFreshVar()
-				f, l = b.assignRhsToNode(freshVar, rhs.X, f, l)
-				first, last = b.appendNode(NewRefNode(lhs, freshVar, rhsExp), f, l)
+				freshVar := b.nextFreshVar()
+				nodes = b.assignRhsToNode(freshVar, rhs.X, nodes)
+				nodes = append(nodes, NewRefNode(lhs, freshVar, rhsExp))
 			}
 		}
 	case *ast.StarExpr:
 		switch id := rhs.X.(type) {
 		case *ast.Ident:
-			first, last = b.appendNode(NewPointerNode(lhs, id.Name, rhsExp), f, l)
+			nodes = append(nodes, NewPointerNode(lhs, id.Name, rhsExp))
 		default: //recursive normalization for * and &
-			freshVar := b.NextFreshVar()
-			f, l = b.assignRhsToNode(freshVar, rhs.X, f, l)
-			first, last = b.appendNode(NewPointerNode(lhs, freshVar, rhsExp), f, l)
+			freshVar := b.nextFreshVar()
+			nodes = b.assignRhsToNode(freshVar, rhs.X, nodes)
+			nodes = append(nodes, NewPointerNode(lhs, freshVar, rhsExp))
 		}
 	case *ast.FuncLit:
 		//TODO: see CallExpr, basically the same problem
-		first, last = b.appendNode(NewAllocNode(lhs, rhsExp), f, l)
+		nodes = append(nodes, NewAllocNode(lhs, rhsExp))
 	case *ast.CallExpr:
 		//TODO: dunno what to do here..
 		//		assume there's no normalization needed and create AllocNode (what if the function returns double pointer)?
 		//		I guess for now, yes..
-		first, last = b.appendNode(NewAllocNode(lhs, rhsExp), f, l)
+		nodes = append(nodes, NewAllocNode(lhs, rhsExp))
 	}
-	return first, last
+	return nodes
 }
 
-func (b *Builder) declToNode(spec *ast.ValueSpec, f Node, l Node) (first, last Node) {
+func (b *Builder) declToNode(spec *ast.ValueSpec, nodes []Node) []Node {
 	//first, we need to count the number of * references of spec's type
 	refCount := 1 //if type is undefined, we assume that there's one * reference
 	stop := false
@@ -344,42 +329,20 @@ func (b *Builder) declToNode(spec *ast.ValueSpec, f Node, l Node) (first, last N
 	if refCount > 0 {
 		//normalize more than 1 * reference
 		currVar := spec.Names[0].Name
+		var tempNodes []Node
 		for i := 1; i < refCount; i++ {
-			freshVar := b.NextFreshVar()
-			f, l = b.appendNode(NewRefNode(currVar, freshVar, spec), f, l)
+			freshVar := b.nextFreshVar()
+			//prepending each new node
+			tempNodes = append([]Node{NewRefNode(currVar, freshVar, spec)}, tempNodes...)
 			currVar = freshVar
 		}
 		if spec.Values == nil {
-			first, last = b.appendNode(NewNullNode(currVar, spec), f, l)
+			nodes = append(nodes, NewNullNode(currVar, spec))
 		} else {
-			first, last = b.assignRhsToNode(currVar, spec.Values[0], f, l)
+			nodes = b.assignRhsToNode(currVar, spec.Values[0], nodes)
 		}
+		//now we will append normalization nodes
+		nodes = append(nodes, tempNodes...)
 	}
-	return first, last
-	/*
-	decl := spec.Type
-	//i will be the level of * indirection
-	for i := 0; ; i++ {
-		switch expr := decl.(type) {
-		case *ast.Ident:
-			//only if there is at least one * reference we will create nodes
-			if i > 0 {
-				currVar := expr.Name
-				//if i > 1, we will need to normalize
-				for ; i > 1; i-- {
-					freshVar := b.NextFreshVar()
-					f, l = b.appendNode(NewRefNode(currVar, freshVar, expr), f, l)
-					currVar = freshVar
-				}
-				if spec.Values == nil {
-					first, last = b.appendNode(NewNullNode(currVar, decl), f, l)
-				} else {
-					first, last = b.appendNode(NewAllocNode(currVar, decl), f, l)
-				}
-			}
-			return first, last
-		case *ast.StarExpr:
-			decl = expr.X
-		}
-	}*/
+	return nodes
 }

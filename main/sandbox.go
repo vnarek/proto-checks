@@ -6,7 +6,6 @@ import (
 	"go/token"
 
 	normalizeCfg "github.com/vnarek/proto-checks/cfg"
-	"golang.org/x/tools/go/cfg"
 )
 
 func main() {
@@ -15,13 +14,15 @@ func main() {
 package main
 
 func main() {
-	x := new(int)
-	max := new(int)
-	*max = 5
-	for i := *x; i < *max; i++ {
-		x = &i
+	var x *int = nil
+	if 2+2 == 4 {
+		y := new(int)
+		var z **int = &y
+		x = *z
+	} else {
+		x = new(int)
 	}
-	x = nil
+	z := x
 }
 `
 
@@ -37,17 +38,10 @@ func main() {
 		panic("not funDecl")
 	}
 
-	c := cfg.New(
-		funDecl.Body,
-		func(ce *ast.CallExpr) bool { return true },
-	)
 	b := normalizeCfg.NewBuilder()
-	start := normalizeCfg.NewStartNode()
-	b.BlockToNode(c.Blocks[0], start)
-	normalizeCfg.PrintNodes(start)
+	nodes := b.GetNodes(funDecl.Body)
+	normalizeCfg.Print(nodes)
 
-	//fmt.Println(c.Format(fset))
-	//fmt.Println("==================")
 	// Print the AST.
 	//ast.Print(fset, f)
 }
