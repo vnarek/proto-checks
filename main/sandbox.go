@@ -51,7 +51,7 @@ func main() {
 	b := normalizeCfg.NewBuilder()
 	start := b.GetCfg(c.Blocks[0])
 	normalizeCfg.PrintNodes(start)
-
+	
 	nodes := b.GetNodes(c.Blocks[0])
 	for _, n := range nodes {
 		println(normalizeCfg.ToString(n))
