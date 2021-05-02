@@ -1,7 +1,0 @@
-[x = null]
-[y = alloc]
-[_t1 = &y]
-[z = &_t1]
-[x = *z]
-[x = alloc]
-[z = x]
