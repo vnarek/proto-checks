@@ -19,7 +19,14 @@ func main() {
 	max := new(int)
 	*max = 5
 	for i := *x; i < *max; i++ {
-		x = &i
+		{}
+		{
+			for j := *x; j < *max; j++ {
+				{}
+			}
+		}
+		{}
+		a=b
 	}
 	x = nil
 }
@@ -42,9 +49,13 @@ func main() {
 		func(ce *ast.CallExpr) bool { return true },
 	)
 	b := normalizeCfg.NewBuilder()
-	start := normalizeCfg.NewStartNode()
-	b.BlockToNode(c.Blocks[0], start)
+	start := b.GetCfg(c.Blocks[0])
 	normalizeCfg.PrintNodes(start)
+
+	nodes := b.GetNodes(c.Blocks[0])
+	for _, n := range nodes {
+		println(normalizeCfg.ToString(n))
+	}
 
 	//fmt.Println(c.Format(fset))
 	//fmt.Println("==================")
