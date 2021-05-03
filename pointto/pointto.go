@@ -140,6 +140,11 @@ func (d *DAG) AddInConstrain(t, x string) {
 
 	for _, then := range constr.Thens {
 		d.AddEdge(then.from, then.to)
+		//c := d.MergeCycles(then.from, then.to)
+		//if c != nil {
+		//	constr = c.constr
+		//	continue
+		//}
 	}
 
 	d.nodes[x].constr[t] = Constrain{
