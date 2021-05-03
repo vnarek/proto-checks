@@ -64,7 +64,8 @@ func TestDesugar(t *testing.T) {
 			)
 
 			b := NewBuilder()
-			start := b.GetCfg(c.Blocks[0])
+			b.Build(c.Blocks[0])
+			start := b.GetCfg()
 
 			var bf bytes.Buffer
 
