@@ -48,10 +48,11 @@ func main() {
 		func(ce *ast.CallExpr) bool { return true },
 	)
 	b := normalizeCfg.NewBuilder()
-	start := b.GetCfg(c.Blocks[0])
+	b.Build(c.Blocks[0])
+	start := b.GetCfg()
 	normalizeCfg.PrintNodes(start)
 
-	nodes := b.GetNodes(c.Blocks[0])
+	nodes := b.Nodes()
 	for _, n := range nodes {
 		println(normalizeCfg.ToString(n))
 	}
