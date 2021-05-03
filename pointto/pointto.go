@@ -9,7 +9,7 @@ import (
 
 var fil = struct{}{}
 
-type Edges map[*Node]string
+type Edges map[string]struct{}
 
 type VarPair struct {
 	from, to string
@@ -67,7 +67,7 @@ func (d *DAG) GetCells() []string {
 }
 
 func (d *DAG) AddEdge(from, to string) {
-	d.nodes[from].edges[d.nodes[to]] = to
+	d.nodes[from].edges[to] = fil
 }
 
 func (d *DAG) AddImpliedConstrain(t, x, y, z string) {
@@ -84,15 +84,14 @@ func (d *DAG) AddImpliedConstrain(t, x, y, z string) {
 func (d *DAG) AddSubsetConstrain(x2, x1 string) {
 	d.AddEdge(x2, x1)
 
-	for name, y := range d.nodes[x2].constr {
-		if y.Valid {
-			d.AddInConstrain(name, x1)
-		}
+	c := d.MergeCycles(x2, x1)
+	if c != nil {
+		d.nodes[x1] = c
 	}
 }
 
 func (d *DAG) MergeCycles(from, to string) *Node {
-	cycleCells := d.mergeCycle(to, from, nil)
+	cycleCells := d.mergeCycle(to, from, []string{to})
 	if len(cycleCells) == 0 {
 		return nil
 	}
@@ -116,6 +115,16 @@ func (d *DAG) MergeCycles(from, to string) *Node {
 		}
 	}
 
+	for _, c := range cycleCells {
+		d.nodes[c] = mergedNode
+	}
+
+	for n := range mergedNode.edges {
+		if d.nodes[n] == mergedNode {
+			delete(mergedNode.edges, n)
+		}
+	}
+
 	return mergedNode
 }
 
@@ -124,7 +133,7 @@ func (d *DAG) mergeCycle(actual, start string, cycle []string) []string {
 		return cycle
 	}
 
-	for _, n := range d.nodes[actual].edges {
+	for n := range d.nodes[actual].edges {
 		c := d.mergeCycle(n, start, append(cycle, n))
 		if len(c) != 0 {
 			return c
@@ -140,18 +149,18 @@ func (d *DAG) AddInConstrain(t, x string) {
 
 	for _, then := range constr.Thens {
 		d.AddEdge(then.from, then.to)
-		//c := d.MergeCycles(then.from, then.to)
-		//if c != nil {
-		//	constr = c.constr
-		//	continue
-		//}
+		/* Should we merge here also? If so its buggy
+		c := d.MergeCycles(then.from, then.to)
+		if c != nil {
+			d.nodes[x] = c
+		}*/
 	}
 
 	d.nodes[x].constr[t] = Constrain{
 		Valid: true,
 	}
 
-	for _, x := range d.nodes[x].edges {
+	for x := range d.nodes[x].edges {
 		d.AddInConstrain(t, x)
 	}
 }
