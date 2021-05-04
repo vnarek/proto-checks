@@ -15,20 +15,13 @@ func main() {
 package main
 
 func main() {
-	x := new(int)
-	max := new(int)
-	*max = 5
-	for i := *x; i < *max; i++ {
-		{}
-		{
-			for j := *x; j < *max; j++ {
-				{}
-			}
-		}
-		{}
-		a=b
-	}
-	x = nil
+	p1 = &a;
+	p2 = &b;
+	p1 = p2;
+	r = &p1;
+	*r = &c
+	p3 = *r;
+	p2 = &d;
 }
 `
 

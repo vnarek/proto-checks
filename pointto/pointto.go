@@ -68,6 +68,11 @@ func (d *DAG) GetCells() []string {
 
 func (d *DAG) AddEdge(from, to string) {
 	d.nodes[from].edges[to] = fil
+	//Cynter says: after we add an edge, shouldn't we also "propagate" all InConstraints?
+	//e.g.:
+	//	a = alloc;
+	//	b = a;
+	//b should contain alloc
 }
 
 func (d *DAG) AddImpliedConstrain(t, x, y, z string) {
@@ -154,6 +159,9 @@ func (d *DAG) AddInConstrain(t, x string) {
 		if c != nil {
 			d.nodes[x] = c
 		}*/
+		//Cynter says: I *think* that probably yes. We should be merging after each AddEdge, that creates cycle
+		//that means Merging should probably be in AddEdge function
+		//however for now we can screw'em cycles :D
 	}
 
 	d.nodes[x].constr[t] = Constrain{
