@@ -100,48 +100,50 @@ func (d *DAG) AddImpliedConstrain(t, x, y, z string) {
 // x2 is subset of x1 constrain
 func (d *DAG) AddSubsetConstrain(x2, x1 string) {
 	d.AddEdge(x2, x1)
-
-	for name, c := range d.nodes[x2].constr {
-		if c.Valid {
-			for edge := range d.nodes[x2].edges {
-				d.AddInConstrain(name, edge)
-			}
-		}
-	}
 }
 
 func (d *DAG) MergeCycles(from, to string) {
 	cycleCells := d.mergeCycle(to, from, []string{to})
-	if len(cycleCells) == 0 {
-		return
-	}
 
 	mergedNode := d.nodes[from]
 
-	for _, n := range cycleCells {
-		node := d.nodes[n]
-		for name, c := range node.constr {
-			if c.Valid {
-				constr := mergedNode.constr[name]
-				constr.Valid = true
-				mergedNode.constr[name] = constr
+	// If there is cycle in the DAG
+	// we need to normalize
+	// resulting node is in `from` node
+	if len(cycleCells) != 0 {
+
+		// Merge constrains if constrain is Valid in the cycle
+		// we add that flag to the `from` node
+		// otherwise we merge the `Thens` sets
+		for _, n := range cycleCells {
+			node := d.nodes[n]
+			for name, c := range node.constr {
+				if c.Valid {
+					constr := mergedNode.constr[name]
+					constr.Valid = true
+					mergedNode.constr[name] = constr
+				}
+				for pair := range c.Thens {
+					mergedNode.constr[name].Thens[pair] = fil
+				}
 			}
-			for pair := range c.Thens {
-				mergedNode.constr[name].Thens[pair] = fil
+		}
+
+		// Actually change all nodes in the cycle to the mergedNode
+		for _, c := range cycleCells {
+			d.nodes[c] = mergedNode
+		}
+
+		// delete reflexive edges
+		for n := range mergedNode.edges {
+			if d.nodes[n] == mergedNode {
+				delete(mergedNode.edges, n)
 			}
 		}
 	}
 
-	for _, c := range cycleCells {
-		d.nodes[c] = mergedNode
-	}
-
-	for n := range mergedNode.edges {
-		if d.nodes[n] == mergedNode {
-			delete(mergedNode.edges, n)
-		}
-	}
-
+	// After adding the edge we need to propagate
+	// Valid constrains
 	for name, c := range mergedNode.constr {
 		if c.Valid {
 			for edge := range mergedNode.edges {
