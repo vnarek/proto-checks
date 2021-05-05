@@ -17,7 +17,7 @@ type VarPair struct {
 
 type Constrain struct {
 	Valid bool
-	Thens []VarPair
+	Thens map[VarPair]struct{}
 }
 
 type Node struct {
@@ -66,56 +66,68 @@ func (d *DAG) GetCells() []string {
 	return d.cells
 }
 
+// AddEdge adds new edge `from`->`to`
+// and tries to normalize graph by merging
+// cycles
 func (d *DAG) AddEdge(from, to string) {
 	d.nodes[from].edges[to] = fil
-	//Cynter says: after we add an edge, shouldn't we also "propagate" all InConstraints?
-	//e.g.:
-	//	a = alloc;
-	//	b = a;
-	//b should contain alloc
+	d.MergeCycles(from, to)
 }
 
+// AddImpliedContrain adds contrain in the form
+// t ∈ [[x]] -> [[y]] ⊆ [[z]]
 func (d *DAG) AddImpliedConstrain(t, x, y, z string) {
 	constr := d.nodes[x].constr[t]
 	if constr.Valid {
+		// If the contrain is valid already
+		// just add the needed edge
 		d.AddSubsetConstrain(y, z)
 		return
 	}
-	constr.Thens = append(constr.Thens, VarPair{y, z})
-	d.nodes[x].constr[t] = constr
+
+	// otherwise we add the contrain to `Thens`
+	// so we can add it later if this contrain
+	// becomes true
+	if d.nodes[x].constr[t].Thens == nil {
+		thens := make(map[VarPair]struct{})
+		d.nodes[x].constr[t] = Constrain{
+			Thens: thens,
+		}
+	}
+	d.nodes[x].constr[t].Thens[VarPair{y, z}] = fil
 }
 
 // x2 is subset of x1 constrain
 func (d *DAG) AddSubsetConstrain(x2, x1 string) {
 	d.AddEdge(x2, x1)
 
-	c := d.MergeCycles(x2, x1)
-	if c != nil {
-		d.nodes[x1] = c
+	for name, c := range d.nodes[x2].constr {
+		if c.Valid {
+			for edge := range d.nodes[x2].edges {
+				d.AddInConstrain(name, edge)
+			}
+		}
 	}
 }
 
-func (d *DAG) MergeCycles(from, to string) *Node {
+func (d *DAG) MergeCycles(from, to string) {
 	cycleCells := d.mergeCycle(to, from, []string{to})
 	if len(cycleCells) == 0 {
-		return nil
+		return
 	}
 
 	mergedNode := d.nodes[from]
-
-	for n, v := range mergedNode.constr {
-		mergedNode.constr[n] = Constrain{
-			Valid: v.Valid,
-		}
-	}
 
 	for _, n := range cycleCells {
 		node := d.nodes[n]
 		for name, c := range node.constr {
 			if c.Valid {
-				mergedNode.constr[name] = Constrain{
-					Valid: true,
-				}
+				constr := mergedNode.constr[name]
+				constr.Valid = true
+				mergedNode.constr[name] = constr
+			}
+			for pair := range c.Thens {
+				mergedNode.constr[name].Thens[pair] = fil
 			}
 		}
 	}
@@ -130,7 +142,13 @@ func (d *DAG) MergeCycles(from, to string) *Node {
 		}
 	}
 
-	return mergedNode
+	for name, c := range mergedNode.constr {
+		if c.Valid {
+			for edge := range mergedNode.edges {
+				d.AddInConstrain(name, edge)
+			}
+		}
+	}
 }
 
 func (d *DAG) mergeCycle(actual, start string, cycle []string) []string {
@@ -152,16 +170,8 @@ func (d *DAG) AddInConstrain(t, x string) {
 	constr := d.nodes[x].constr[t]
 	constr.Valid = true
 
-	for _, then := range constr.Thens {
-		d.AddEdge(then.from, then.to)
-		/* Should we merge here also? If so its buggy
-		c := d.MergeCycles(then.from, then.to)
-		if c != nil {
-			d.nodes[x] = c
-		}*/
-		//Cynter says: I *think* that probably yes. We should be merging after each AddEdge, that creates cycle
-		//that means Merging should probably be in AddEdge function
-		//however for now we can screw'em cycles :D
+	for then := range constr.Thens {
+		d.AddSubsetConstrain(then.from, then.to)
 	}
 
 	d.nodes[x].constr[t] = Constrain{
