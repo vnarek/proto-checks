@@ -13,7 +13,6 @@ func main() {
 	// src is the input for which we want to print the AST.
 	src := `
 package main
-
 func main() {
 	x := new(int)
 	max := new(int)
@@ -51,7 +50,7 @@ func main() {
 	b := normalizeCfg.NewBuilder()
 	start := b.GetCfg(c.Blocks[0])
 	normalizeCfg.PrintNodes(start)
-	
+
 	nodes := b.GetNodes(c.Blocks[0])
 	for _, n := range nodes {
 		println(normalizeCfg.ToString(n))
