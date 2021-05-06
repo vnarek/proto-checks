@@ -104,7 +104,7 @@ var x *int = nil
 var x *int
 x = (((nil)))
 ```
-Celá sada testů se spouští funkcí `TestDesugar()` v souboru `cfg/cfg_test.go`.
+Celá sada testů se spouští ze složky `cfg` příkazem `go test -v ./...`.
 
 ### Pointer analýza
 
