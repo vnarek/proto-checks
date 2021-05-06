@@ -31,7 +31,7 @@ for i := 0; i < 2; i++ {
 }
 res := *sum
 ```
-knihovna cfg rozloží do těchto pěti basic bloků:
+Knihovna cfg rozloží do těchto pěti basic bloků:
 ```
 0:  (next: 3)
     sum := new(int)
@@ -49,7 +49,7 @@ knihovna cfg rozloží do těchto pěti basic bloků:
 4:  (next: 3)
     i++
 ```
-nyní spustíme náš algoritmus, který začne normalizovat od prvního basic bloku jednotlivé výrazy a zároveň se začne zbavuje výrazů, které pro nás
+Nyní spustíme náš algoritmus, který začne normalizovat od prvního basic bloku jednotlivé výrazy a zároveň se začne zbavovat výrazů, které pro nás
 nejsou důležité. Z příkladu si můžeme všimnout, že bloky 3 a 4 neobsahují žádné operace s ukazeteli. Těchto bloků
 se zbavíme úplně a správně napojíme hrany. Zároveň doplníme kromě následovníků i hrany na předchůdce:
 ```
@@ -62,7 +62,7 @@ se zbavíme úplně a správně napojíme hrany. Zároveň doplníme kromě nás
 2:  (next: ) (prev: 0, 1)
     res := *sum
 ```
-k normalizaci výrazu dojde v případě uzlu 1 (protože nemá jeden z 6 tvarů, který obě analýzy vyžadují), ze kterého se
+K normalizaci výrazu dojde v případě uzlu 1 (protože nemá jeden z 6 tvarů, který obě analýzy vyžadují), ze kterého se
 stanou dva uzly, který již požadovaný tvar budou mít:
 ```
 0:  (next: 1_1, 2) (prev: )
@@ -77,7 +77,7 @@ stanou dva uzly, který již požadovaný tvar budou mít:
 2:  (next: ) (prev: 0, 1_2)
     res := *sum
 ```
-výsledkem našeho algoritmu je tedy následující CFG:
+Výsledkem našeho algoritmu je tedy následující CFG:
 ```
      ↓
 [sum = alloc]→→
@@ -89,7 +89,7 @@ výsledkem našeho algoritmu je tedy následující CFG:
 [res = *sum]←←↓
      ↓
 ```
-tento graf používá null pointer analýza. Pointer analýza používá modifikovanou verzi tohoto grafu, která se skládá
+Tento graf používá null pointer analýza. Pointer analýza používá modifikovanou verzi tohoto grafu, která se skládá
 z po sobě jdoucích uzlech (nejedná se tedy úplně o graf, jako spíš sekvenci uzlů). Je to kvůli tomu, že k analýze se
 používá Andesenův algoritmus, který je flow-insensitive a nezáleží mu na pořadí jednotlivých uzlů.
 
