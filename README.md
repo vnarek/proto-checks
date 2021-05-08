@@ -12,7 +12,7 @@ Proto aby bylo možné tyto chyby odchytit, potřebujeme `nilness` analýzu. U v
 ## Implementace
 
 Na nilness analýzu potřebujeme nejprve získat normalizovaný control flow graph. Tento cfg, využijeme jak pro získání `points-to` struktury z 
-pointer analýzy tak na samotnou nilness analýzu.
+pointer analýzy, tak na samotnou nilness analýzu.
 
 ### Control flow graph
 Jako první jsme museli navrhnout, jak bude vypadat control flow graph (CFG). Obě dvě analýzy vyžadují na vstupu program, ve kterém jsou normalizované všechny operaci s ukazeteli do následujích tvarů:
@@ -30,8 +30,10 @@ Dále pro účely nilness analýzy jsme od grafu vyžadovali, aby každý uzel o
 tak i na své předky. Jelikož tyto požadavky byly velmi konkrétní, bylo nám téměr jasné, že CFG si budeme muset napsat z velké části sami.
 
 K sestavení CFG jsme využili [go knihovnu cfg](https://pkg.go.dev/golang.org/x/tools/go/cfg), která pro každou funkci
-sestaví graf basic bloků (ty už neobsahují AST nody, které mění plynutí programu - tzn. If, Switch, atd.).
-Bohužel tento graf je jednosměrný, pro každý uzel jsou definovaný jen následovníci. Předky jsme tedy museli doplnit.
+sestaví graf basic bloků (ty už neobsahují AST nody, které mění plynutí programu - tzn. If, Switch, atd.). Tento graf nepracuje s argumenty funkce,
+tudíž jsme je museli do výsledného CFG přidat dodatečně. Přidáváme pouze ukazatelové typy, protože ostatní typy nás v rámci pointer a nilness analýzy nezajímají.
+
+Dále je tento graf jednosměrný, pro každý uzel jsou definovaný jen následovníci. Předky jsme tedy museli doplnit.
 Dále jsme z bloku odstranili veškeré AST nody, které neobsahují operace s ukazateli. To znamená, že některé basic bloky
 z grafu vypadly úplně. V tom případě bylo potřeba správně napojit hrany grafu, aby se neporušila struktura programu. Např. tento Go program:
 ```go
@@ -200,3 +202,13 @@ nejednoznačných částí a spoustu *problematických* konstruktů známých z 
 Tato zjednodušení mají ale i své nevýhody. Tou hlavní je absence generik, která znamenala kopírování některých struktur potřebných pro
 statickou analýzu a netypovost `AST`. Například jsme museli vytvořit dvě téměř identické instance map lattice, které se lišily pouze v typu,
 nad kterým pracovaly.
+
+Na začátku semestru jsme měli velmi optimistické představy, jak jednoduché je takovou analýzu napsat. Nepočítali jsme s množstvím researche, který půjde
+do pochopení AST general-purpose jazyka oproti toy jazyku. Proto jsme se k samotné analýze dostali až v posledních dvou týdnech semestru.
+
+Pro splnění zadání bychom potřebovali naimplementovat ještě následující:
+
+* flow-sensitive pointer analýzu
+* pointer analýzu nad strukturami
+
+Třešničkou na dortu by byla inter-procedurální nilness analýza. Aktuálně podporujeme pouze analýzu izolovaných funkcí.
