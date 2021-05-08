@@ -1,5 +1,6 @@
 # Protocol buffer checky pro jazyk GO
 ## Zadání
+Analýza správného použití knihovny pro vytváření GRPC serverů v jazyce GO.
 
 ## Motivace
 
@@ -22,20 +23,20 @@ X1 = &X2
 X1 = X2
 X1 = *X2
 *X1 = X2
-X = null (nil v případě jazyka Go)
+X = null (nil v případě jazyka GO)
 *X (dereference, která není součástí žádného z předchozích tvarů)
 ```
 Náš CFG se tedy narozdíl od běžných CFG skládá pouze z těchto sedmi uzlů (ostatní operace nejsou pro naše potřeby důležité, proto je z grafu vynecháme).
 Dále pro účely nilness analýzy jsme od grafu vyžadovali, aby každý uzel obsahoval jak hrany na svoje následovníky,
 tak i na své předky. Jelikož tyto požadavky byly velmi konkrétní, bylo nám téměr jasné, že CFG si budeme muset napsat z velké části sami.
 
-K sestavení CFG jsme využili [go knihovnu cfg](https://pkg.go.dev/golang.org/x/tools/go/cfg), která pro každou funkci
+K sestavení CFG jsme využili [GO knihovnu cfg](https://pkg.go.dev/golang.org/x/tools/go/cfg), která pro každou funkci
 sestaví graf basic bloků (ty už neobsahují AST nody, které mění plynutí programu - tzn. If, Switch, atd.). Tento graf nepracuje s argumenty funkce,
 tudíž jsme je museli do výsledného CFG přidat dodatečně. Přidáváme pouze ukazatelové typy, protože ostatní typy nás v rámci pointer a nilness analýzy nezajímají.
 
 Dále je tento graf jednosměrný, pro každý uzel jsou definovaný jen následovníci. Předky jsme tedy museli doplnit.
 Dále jsme z bloku odstranili veškeré AST nody, které neobsahují operace s ukazateli. To znamená, že některé basic bloky
-z grafu vypadly úplně. V tom případě bylo potřeba správně napojit hrany grafu, aby se neporušila struktura programu. Např. tento Go program:
+z grafu vypadly úplně. V tom případě bylo potřeba správně napojit hrany grafu, aby se neporušila struktura programu. Např. tento GO program:
 ```go
 sum := new(int)
 for i := 0; i < 2; i++ {
@@ -108,7 +109,7 @@ používá Andesenův algoritmus, který je flow-insensitive a nezáleží mu na
 Algoritmus se nachází v packagi `cfg`. V souboru `cfg/testdata` se nachází sada testů, kde jsou referenční výstupy
 jednotlivých casů uloženy v souborech s příponou *.golden*. Tyto testy většinou kontrolují správnou normalizaci
 operací s ukazateli, zároveň se také snaží pokrýt všechny způsoby, jak jdou jednotlivé operace definovat. Pro zajímavost,
-například uzel `[x = null]` jde v jazyku Go zapsat těmito ekvivalentními způsoby:
+například uzel `[x = null]` jde v jazyku GO zapsat těmito ekvivalentními způsoby:
 ```go
 x = nil
 x := nil
