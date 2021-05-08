@@ -2,12 +2,12 @@ package main
 
 import (
 	"fmt"
-	normalizeCfg "github.com/vnarek/proto-checks/cfg"
-	"github.com/vnarek/proto-checks/nilness"
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"golang.org/x/tools/go/cfg"
+
+	normalizeCfg "github.com/vnarek/proto-checks/cfg"
+	"github.com/vnarek/proto-checks/nilness"
 )
 
 func main() {
@@ -15,11 +15,9 @@ func main() {
 	src := `
 package main
 
-func main(in *int) {
-	r := nil
-	if r != nil {
-		q = &r
-	}
+func main(a *int) {
+	d := new(5)
+	g := d
 }
 `
 
@@ -34,25 +32,18 @@ func main(in *int) {
 	if !ok {
 		panic("not funDecl")
 	}
-
-	c := cfg.New(
-		funDecl.Body,
-		func(ce *ast.CallExpr) bool { return true },
-	)
 	b := normalizeCfg.NewBuilder()
-	b.Build(c.Blocks[0])
+	b.Build(funDecl)
 	start := b.GetCfg()
 	normalizeCfg.PrintNodes(start)
 
-	/*
 	nodes := b.Nodes()
 	for _, n := range nodes {
 		println(normalizeCfg.ToString(n))
-	}*/
+	}
 
 	res := nilness.Build(b)
-
-	fmt.Printf("%#v\n", res)
+	fmt.Println(res)
 
 	//fmt.Println(c.Format(fset))
 	//fmt.Println("==================")

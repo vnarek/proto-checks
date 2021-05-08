@@ -158,7 +158,7 @@ type SingleDerefNode struct {
 func NewSingleDerefNode(lhs Variable, ast ast.Node) *SingleDerefNode {
 	return &SingleDerefNode{
 		CfgNode: newCfg(ast),
-		Lhs:	 lhs,
+		Lhs:     lhs,
 	}
 }
 
@@ -243,9 +243,24 @@ func (b *Builder) flattenCfg(n Node, nodes []Node, visited map[Node]struct{}) []
 	return nodes
 }
 
-func (b *Builder) Build(block *cfg.Block) {
+func (b *Builder) Build(funDecl *ast.FuncDecl) {
+	c := cfg.New(
+		funDecl.Body,
+		func(ce *ast.CallExpr) bool { return true },
+	)
 	b.result = NewStartNode()
-	b.blockToNode(block, b.result)
+
+	var start Node = b.result
+	for _, p := range funDecl.Type.Params.List {
+		_, ok := p.Type.(*ast.StarExpr)
+		if ok {
+			for _, n := range p.Names {
+				_, start = b.appendNode(NewNullNode(n.Name, p), b.result, start)
+			}
+		}
+	}
+
+	b.blockToNode(c.Blocks[0], start)
 }
 
 func (b *Builder) GetCfg() *StartNode {

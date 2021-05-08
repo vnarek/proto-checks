@@ -13,7 +13,6 @@ import (
 	"testing"
 
 	"github.com/andreyvit/diff"
-	"golang.org/x/tools/go/cfg"
 )
 
 var (
@@ -58,13 +57,8 @@ func TestDesugar(t *testing.T) {
 				panic("not funDecl")
 			}
 
-			c := cfg.New(
-				funDecl.Body,
-				func(ce *ast.CallExpr) bool { return true },
-			)
-
 			b := NewBuilder()
-			b.Build(c.Blocks[0])
+			b.Build(funDecl)
 			start := b.GetCfg()
 
 			var bf bytes.Buffer

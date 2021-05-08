@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	normalizeCfg "github.com/vnarek/proto-checks/cfg"
-	"golang.org/x/tools/go/cfg"
 )
 
 func TestBookCase(t *testing.T) {
@@ -36,12 +35,8 @@ func main() {
 		panic("not funDecl")
 	}
 
-	c := cfg.New(
-		funDecl.Body,
-		func(ce *ast.CallExpr) bool { return true },
-	)
 	b := normalizeCfg.NewBuilder()
-	b.Build(c.Blocks[0])
+	b.Build(funDecl)
 
 	sol := Build(b)
 
@@ -69,12 +64,8 @@ func main() {
 		panic("not funDecl")
 	}
 
-	c := cfg.New(
-		funDecl.Body,
-		func(ce *ast.CallExpr) bool { return true },
-	)
 	b := normalizeCfg.NewBuilder()
-	b.Build(c.Blocks[0])
+	b.Build(funDecl)
 
 	sol := Build(b)
 
@@ -107,12 +98,8 @@ func main() {
 		panic("not funDecl")
 	}
 
-	c := cfg.New(
-		funDecl.Body,
-		func(ce *ast.CallExpr) bool { return true },
-	)
 	b := normalizeCfg.NewBuilder()
-	b.Build(c.Blocks[0])
+	b.Build(funDecl)
 
 	sol := Build(b)
 
