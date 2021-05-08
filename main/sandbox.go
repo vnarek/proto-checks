@@ -1,11 +1,12 @@
 package main
 
 import (
+	"fmt"
+	normalizeCfg "github.com/vnarek/proto-checks/cfg"
+	"github.com/vnarek/proto-checks/nilness"
 	"go/ast"
 	"go/parser"
 	"go/token"
-
-	normalizeCfg "github.com/vnarek/proto-checks/cfg"
 	"golang.org/x/tools/go/cfg"
 )
 
@@ -13,14 +14,12 @@ func main() {
 	// src is the input for which we want to print the AST.
 	src := `
 package main
-func main() {
-	p1 = &a;
-	p2 = &b;
-	p1 = p2;
-	r = &p1;
-	*r = &c
-	p3 = *r;
-	p2 = &d;
+
+func main(in *int) {
+	r := nil
+	if r != nil {
+		q = &r
+	}
 }
 `
 
@@ -45,10 +44,15 @@ func main() {
 	start := b.GetCfg()
 	normalizeCfg.PrintNodes(start)
 
+	/*
 	nodes := b.Nodes()
 	for _, n := range nodes {
 		println(normalizeCfg.ToString(n))
-	}
+	}*/
+
+	res := nilness.Build(b)
+
+	fmt.Printf("%#v\n", res)
 
 	//fmt.Println(c.Format(fset))
 	//fmt.Println("==================")
