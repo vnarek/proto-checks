@@ -52,6 +52,7 @@ func connect(from, to Node) {
 	}
 }
 
+//StartNode represents start of CFG
 type StartNode struct {
 	CfgNode
 }
@@ -62,7 +63,7 @@ func NewStartNode() *StartNode {
 	}
 }
 
-// X = alloc P
+//AllocNode represents [X = alloc P]
 type AllocNode struct {
 	CfgNode
 	Lhs Variable
@@ -75,7 +76,7 @@ func NewAllocNode(lhs Variable, ast ast.Node) *AllocNode {
 	}
 }
 
-// X_1 = &X_2
+//RefNode represents [X_1 = &X_2]
 type RefNode struct {
 	CfgNode
 	Lhs Variable
@@ -90,7 +91,7 @@ func NewRefNode(lhs, rhs Variable, ast ast.Node) *RefNode {
 	}
 }
 
-// X_1 = X_2
+//AssignNode represents [X_1 = X_2]
 type AssignNode struct {
 	CfgNode
 	Lhs Variable
@@ -105,7 +106,7 @@ func NewAssignNode(lhs, rhs Variable, ast ast.Node) *AssignNode {
 	}
 }
 
-// X_1 = *X_2
+//PointerNode represents [X_1 = *X_2]
 type PointerNode struct {
 	CfgNode
 	Lhs Variable
@@ -120,7 +121,7 @@ func NewPointerNode(lhs, rhs Variable, ast ast.Node) *PointerNode {
 	}
 }
 
-// *X_1 = X_2
+//DerefNode represents [*X_1 = X_2]
 type DerefNode struct {
 	CfgNode
 	Lhs Variable
@@ -135,7 +136,7 @@ func NewDerefNode(lhs, rhs Variable, ast ast.Node) *DerefNode {
 	}
 }
 
-// X = null
+//NullNode represents [X = null]
 type NullNode struct {
 	CfgNode
 	Lhs Variable
@@ -145,6 +146,19 @@ func NewNullNode(lhs Variable, ast ast.Node) *NullNode {
 	return &NullNode{
 		CfgNode: newCfg(ast),
 		Lhs:     lhs,
+	}
+}
+
+//SingleDerefNode represents [*X]
+type SingleDerefNode struct {
+	CfgNode
+	Lhs Variable
+}
+
+func NewSingleDerefNode(lhs Variable, ast ast.Node) *SingleDerefNode {
+	return &SingleDerefNode{
+		CfgNode: newCfg(ast),
+		Lhs:	 lhs,
 	}
 }
 
@@ -164,6 +178,8 @@ func ToString(node Node) string {
 		return "[" + n.Lhs + " = null]"
 	case *AllocNode:
 		return "[" + n.Lhs + " = alloc]"
+	case *SingleDerefNode:
+		return "[" + n.Lhs + "]"
 	default:
 		panic("unimplemented print")
 	}
@@ -295,11 +311,13 @@ func (b *Builder) astToNode(a ast.Node) (first, last Node) {
 		first, last = b.assignLhsToNode(a.Lhs[0], a.Rhs[0], first, last)
 	case *ast.ValueSpec: //for example [var int* x] or [var int* x = new(1)]
 		first, last = b.declToNode(a, first, last)
+	default: //all other nodes that can contain SingleDerefNode
+		first, last = b.othersToNode(a, first, last)
 	}
 	return first, last
 }
 
-//decomposes lhs to string
+//decomposes lhs of assign statement
 func (b *Builder) assignLhsToNode(lhsExp ast.Expr, rhsExp ast.Expr, f Node, l Node) (first, last Node) {
 	switch lhs := lhsExp.(type) {
 	case *ast.ParenExpr:
@@ -333,6 +351,7 @@ func (b *Builder) assignLhsToNode(lhsExp ast.Expr, rhsExp ast.Expr, f Node, l No
 	return first, last
 }
 
+//decomposes rhs of assign statement
 func (b *Builder) assignRhsToNode(lhs string, rhsExp ast.Expr, f Node, l Node) (first, last Node) {
 	switch rhs := rhsExp.(type) {
 	case *ast.ParenExpr:
@@ -363,18 +382,21 @@ func (b *Builder) assignRhsToNode(lhs string, rhsExp ast.Expr, f Node, l Node) (
 			f, l = b.assignRhsToNode(freshVar, rhs.X, f, l)
 			first, last = b.appendNode(NewPointerNode(lhs, freshVar, rhsExp), f, l)
 		}
-	case *ast.FuncLit:
-		//TODO: see CallExpr, basically the same problem
-		first, last = b.appendNode(NewAllocNode(lhs, rhsExp), f, l)
 	case *ast.CallExpr:
 		//TODO: dunno what to do here..
 		//		assume there's no normalization needed and create AllocNode (what if the function returns double pointer)?
 		//		I guess for now, yes..
 		first, last = b.appendNode(NewAllocNode(lhs, rhsExp), f, l)
+
+		//function call itself can contain SingleDerefNode as argument
+		for _, v := range rhs.Args {
+			first, last = b.othersToNode(v, first, last)
+		}
 	}
 	return first, last
 }
 
+//decomposes variable declaration
 func (b *Builder) declToNode(spec *ast.ValueSpec, f Node, l Node) (first, last Node) {
 	//first, we need to count the number of * references of spec's type
 	refCount := 1 //if type is undefined, we assume that there's one * reference
@@ -408,30 +430,10 @@ func (b *Builder) declToNode(spec *ast.ValueSpec, f Node, l Node) (first, last N
 		}
 	}
 	return first, last
-	/*
-		decl := spec.Type
-		//i will be the level of * indirection
-		for i := 0; ; i++ {
-			switch expr := decl.(type) {
-			case *ast.Ident:
-				//only if there is at least one * reference we will create nodes
-				if i > 0 {
-					currVar := expr.Name
-					//if i > 1, we will need to normalize
-					for ; i > 1; i-- {
-						freshVar := b.nextFreshVar()
-						f, l = b.appendNode(NewRefNode(currVar, freshVar, expr), f, l)
-						currVar = freshVar
-					}
-					if spec.Values == nil {
-						first, last = b.appendNode(NewNullNode(currVar, decl), f, l)
-					} else {
-						first, last = b.appendNode(NewAllocNode(currVar, decl), f, l)
-					}
-				}
-				return first, last
-			case *ast.StarExpr:
-				decl = expr.X
-			}
-		}*/
+}
+
+//decomposes all other nodes
+func (b *Builder) othersToNode(a ast.Node, f Node, l Node) (first, last Node) {
+	//TODO: find all SingleDerefNode
+	return f, l
 }
