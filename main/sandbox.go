@@ -43,7 +43,8 @@ func main(in *int) {
 	b.Build(c.Blocks[0])
 	start := b.GetCfg()
 	normalizeCfg.PrintNodes(start)
-/*
+
+	/*
 	nodes := b.Nodes()
 	for _, n := range nodes {
 		println(normalizeCfg.ToString(n))
