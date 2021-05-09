@@ -40,7 +40,7 @@ z grafu vypadly úplně. V tom případě bylo potřeba správně napojit hrany 
 ```go
 sum := new(int)
 for i := 0; i < 2; i++ {
-    sum = x
+    sum = **x
 }
 res := *sum
 ```
