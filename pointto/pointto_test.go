@@ -23,24 +23,11 @@ func main() {
 	x = *p
 	p = &z
 }`
-	// Create the AST by parsing src.
-	fset := token.NewFileSet() // positions are relative to fset
-	f, err := parser.ParseFile(fset, "", tt, 0)
-	if err != nil {
-		panic(err)
-	}
+	ref := make(Result)
+	ref["p"] = []string{"alloc-1", "y", "z"}
+	ref["q"] = []string{"y"}
 
-	funDecl, ok := f.Decls[0].(*ast.FuncDecl)
-	if !ok {
-		panic("not funDecl")
-	}
-
-	b := normalizeCfg.NewBuilder()
-	b.Build(funDecl)
-
-	sol := Build(b)
-
-	t.Logf("%#v\n", sol)
+	runTest(t, tt, ref)
 }
 
 func TestCycleCase(t *testing.T) {
@@ -52,24 +39,11 @@ func main() {
 	x := p
 	p = x
 }`
-	// Create the AST by parsing src.
-	fset := token.NewFileSet() // positions are relative to fset
-	f, err := parser.ParseFile(fset, "", tt, 0)
-	if err != nil {
-		panic(err)
-	}
+	ref := make(Result)
+	ref["p"] = []string{"alloc-1"}
+	ref["x"] = []string{"alloc-1"}
 
-	funDecl, ok := f.Decls[0].(*ast.FuncDecl)
-	if !ok {
-		panic("not funDecl")
-	}
-
-	b := normalizeCfg.NewBuilder()
-	b.Build(funDecl)
-
-	sol := Build(b)
-
-	t.Logf("%#v\n", sol)
+	runTest(t, tt, ref)
 }
 
 //source: http://pages.cs.wisc.edu/~fischer/cs701.f08/lectures/Lecture26.4up.pdf
@@ -86,6 +60,17 @@ func main() {
 	p3 = *r;
 	p2 = &d;
 }`
+	ref := make(Result)
+	ref["p1"] = []string{"a", "b", "c", "d"}
+	ref["p2"] = []string{"b", "d"}
+	ref["p3"] = []string{"a", "b", "c", "d"}
+	ref["r"] = []string{"p1"}
+	ref["_t1"] = []string{"c"}
+
+	runTest(t, tt, ref)
+}
+
+func runTest(t *testing.T, tt string, ref Result) {
 	// Create the AST by parsing src.
 	fset := token.NewFileSet() // positions are relative to fset
 	f, err := parser.ParseFile(fset, "", tt, 0)
@@ -103,11 +88,39 @@ func main() {
 
 	sol := Build(b)
 
-	/* Should return:
-	 * p1 = a, b, c, d
-	 * p2 = b, d
-	 * p3 = a, b, c, d
-	 * r = p1
-	 */
-	t.Logf("%#v\n", sol)
+	//check sizes of solution
+	if len(sol) != len(ref) {
+		t.Logf("solution size: %d", len(sol))
+		t.Logf("ref solution size: %d", len(ref))
+		t.Fail()
+		return
+	}
+
+	//for each variable in ref solution
+	for k, v := range ref {
+		if len(sol[k]) != len(v) {
+			t.Logf("solution size of variable '%s': %d", k, len(sol[k]))
+			t.Logf("ref solution size of variable '%s': %d", k, len(v))
+			t.Fail()
+			return
+		}
+
+		//for each variable v points to
+		for _, target := range v {
+			if !contains(sol[k], target) {
+				t.Logf("missing '%s points to %s' relation", k, target)
+				t.Fail()
+				return
+			}
+		}
+	}
+}
+
+func contains(hay []string, needle string) bool {
+	for _, v := range hay {
+		if v == needle {
+			return true
+		}
+	}
+	return false
 }

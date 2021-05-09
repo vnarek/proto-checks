@@ -15,9 +15,14 @@ func main() {
 	src := `
 package main
 
-func main(a *int) {
-	d := new(5)
-	g := d
+func main() {
+	p1 = &a;
+	p2 = &b;
+	p1 = p2;
+	r = &p1;
+	*r = &c
+	p3 = *r;
+	p2 = &d;
 }
 `
 

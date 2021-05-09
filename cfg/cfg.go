@@ -8,8 +8,6 @@ import (
 	"golang.org/x/tools/go/cfg"
 )
 
-var cnt = 0
-
 type CfgNode struct {
 	ast  ast.Node
 	id   int
@@ -17,11 +15,11 @@ type CfgNode struct {
 	pred map[Node]struct{}
 }
 
-func newCfg(ast ast.Node) CfgNode {
-	cnt++
+func (b *Builder) newCfg(ast ast.Node) CfgNode {
+	b.nodeCnt++
 	return CfgNode{
 		ast:  ast,
-		id:   cnt - 1,
+		id:   b.nodeCnt - 1,
 		succ: make(map[Node]struct{}),
 		pred: make(map[Node]struct{}),
 	}
@@ -57,9 +55,9 @@ type StartNode struct {
 	CfgNode
 }
 
-func NewStartNode() *StartNode {
+func (b *Builder) NewStartNode() *StartNode {
 	return &StartNode{
-		CfgNode: newCfg(nil),
+		CfgNode: b.newCfg(nil),
 	}
 }
 
@@ -69,9 +67,9 @@ type AllocNode struct {
 	Lhs Variable
 }
 
-func NewAllocNode(lhs Variable, ast ast.Node) *AllocNode {
+func (b *Builder) NewAllocNode(lhs Variable, ast ast.Node) *AllocNode {
 	return &AllocNode{
-		CfgNode: newCfg(ast),
+		CfgNode: b.newCfg(ast),
 		Lhs:     lhs,
 	}
 }
@@ -83,9 +81,9 @@ type RefNode struct {
 	Rhs Variable
 }
 
-func NewRefNode(lhs, rhs Variable, ast ast.Node) *RefNode {
+func (b *Builder) NewRefNode(lhs, rhs Variable, ast ast.Node) *RefNode {
 	return &RefNode{
-		CfgNode: newCfg(ast),
+		CfgNode: b.newCfg(ast),
 		Lhs:     lhs,
 		Rhs:     rhs,
 	}
@@ -98,9 +96,9 @@ type AssignNode struct {
 	Rhs Variable
 }
 
-func NewAssignNode(lhs, rhs Variable, ast ast.Node) *AssignNode {
+func (b *Builder) NewAssignNode(lhs, rhs Variable, ast ast.Node) *AssignNode {
 	return &AssignNode{
-		CfgNode: newCfg(ast),
+		CfgNode: b.newCfg(ast),
 		Lhs:     lhs,
 		Rhs:     rhs,
 	}
@@ -113,9 +111,9 @@ type PointerNode struct {
 	Rhs Variable
 }
 
-func NewPointerNode(lhs, rhs Variable, ast ast.Node) *PointerNode {
+func (b *Builder) NewPointerNode(lhs, rhs Variable, ast ast.Node) *PointerNode {
 	return &PointerNode{
-		CfgNode: newCfg(ast),
+		CfgNode: b.newCfg(ast),
 		Lhs:     lhs,
 		Rhs:     rhs,
 	}
@@ -128,9 +126,9 @@ type DerefNode struct {
 	Rhs Variable
 }
 
-func NewDerefNode(lhs, rhs Variable, ast ast.Node) *DerefNode {
+func (b *Builder) NewDerefNode(lhs, rhs Variable, ast ast.Node) *DerefNode {
 	return &DerefNode{
-		CfgNode: newCfg(ast),
+		CfgNode: b.newCfg(ast),
 		Lhs:     lhs,
 		Rhs:     rhs,
 	}
@@ -142,9 +140,9 @@ type NullNode struct {
 	Lhs Variable
 }
 
-func NewNullNode(lhs Variable, ast ast.Node) *NullNode {
+func (b *Builder) NewNullNode(lhs Variable, ast ast.Node) *NullNode {
 	return &NullNode{
-		CfgNode: newCfg(ast),
+		CfgNode: b.newCfg(ast),
 		Lhs:     lhs,
 	}
 }
@@ -155,9 +153,9 @@ type SingleDerefNode struct {
 	Lhs Variable
 }
 
-func NewSingleDerefNode(lhs Variable, ast ast.Node) *SingleDerefNode {
+func (b *Builder) NewSingleDerefNode(lhs Variable, ast ast.Node) *SingleDerefNode {
 	return &SingleDerefNode{
-		CfgNode: newCfg(ast),
+		CfgNode: b.newCfg(ast),
 		Lhs:     lhs,
 	}
 }
@@ -197,8 +195,8 @@ type Builder struct {
 	blockNode map[*cfg.Block]Node
 	//used for detecting empty cycles
 	emptyCycleNodes map[*cfg.Block]struct{}
-	freshVarCnt     int
-
+	nodeCnt int
+	freshVarCnt int
 	result *StartNode
 }
 
@@ -206,6 +204,7 @@ func NewBuilder() *Builder {
 	return &Builder{
 		blockNode:       make(map[*cfg.Block]Node),
 		emptyCycleNodes: make(map[*cfg.Block]struct{}),
+		nodeCnt:		 0,
 		freshVarCnt:     0,
 	}
 }
@@ -248,14 +247,14 @@ func (b *Builder) Build(funDecl *ast.FuncDecl) {
 		funDecl.Body,
 		func(ce *ast.CallExpr) bool { return true },
 	)
-	b.result = NewStartNode()
+	b.result = b.NewStartNode()
 
 	var start Node = b.result
 	for _, p := range funDecl.Type.Params.List {
 		_, ok := p.Type.(*ast.StarExpr)
 		if ok {
 			for _, n := range p.Names {
-				_, start = b.appendNode(NewNullNode(n.Name, p), b.result, start)
+				_, start = b.appendNode(b.NewNullNode(n.Name, p), b.result, start)
 			}
 		}
 	}
@@ -346,15 +345,15 @@ func (b *Builder) assignLhsToNode(lhsExp ast.Expr, rhsExp ast.Expr, f Node, l No
 			//now we'll peek the rhs
 			switch rhs := rhsExp.(type) {
 			case *ast.Ident:
-				return b.appendNode(NewDerefNode(id.Name, rhs.Name, rhsExp), f, l)
+				return b.appendNode(b.NewDerefNode(id.Name, rhs.Name, rhsExp), f, l)
 			}
 			freshVar := b.nextFreshVar()
 			newF, newL := b.assignRhsToNode(freshVar, rhsExp, f, l)
 			//only if new nodes (excluding SingleDerefNode) were created we will append DerefNode
 			if newL != l && !b.singleDerefOnly(newF, newL) {
-				first, last = b.appendNode(NewDerefNode(id.Name, freshVar, lhsExp), newF, newL)
+				first, last = b.appendNode(b.NewDerefNode(id.Name, freshVar, lhsExp), newF, newL)
 			} else { //otherwise we will append SingleDerefNode
-				first, last = b.appendNode(NewSingleDerefNode(id.Name, id), newF, newL)
+				first, last = b.appendNode(b.NewSingleDerefNode(id.Name, id), newF, newL)
 			}
 		default: //we need to normalize lhs StarExpr
 			freshVar := b.nextFreshVar()
@@ -377,37 +376,37 @@ func (b *Builder) assignRhsToNode(lhs string, rhsExp ast.Expr, f Node, l Node) (
 		first, last = b.assignRhsToNode(lhs, rhs.X, f, l)
 	case *ast.Ident:
 		if rhs.Name == "nil" {
-			first, last = b.appendNode(NewNullNode(lhs, rhsExp), f, l)
+			first, last = b.appendNode(b.NewNullNode(lhs, rhsExp), f, l)
 		} else {
-			first, last = b.appendNode(NewAssignNode(lhs, rhs.Name, rhsExp), f, l)
+			first, last = b.appendNode(b.NewAssignNode(lhs, rhs.Name, rhsExp), f, l)
 		}
 	case *ast.UnaryExpr:
 		if rhs.Op == token.AND { //&
 			switch id := rhs.X.(type) {
 			case *ast.Ident:
-				first, last = b.appendNode(NewRefNode(lhs, id.Name, rhsExp), f, l)
+				first, last = b.appendNode(b.NewRefNode(lhs, id.Name, rhsExp), f, l)
 			default: //recursive normalization for * and &
 				freshVar := b.nextFreshVar()
 				f, l = b.assignRhsToNode(freshVar, rhs.X, f, l)
-				first, last = b.appendNode(NewRefNode(lhs, freshVar, rhsExp), f, l)
+				first, last = b.appendNode(b.NewRefNode(lhs, freshVar, rhsExp), f, l)
 			}
 		}
 	case *ast.StarExpr:
 		switch id := rhs.X.(type) {
 		case *ast.Ident:
-			first, last = b.appendNode(NewPointerNode(lhs, id.Name, rhsExp), f, l)
+			first, last = b.appendNode(b.NewPointerNode(lhs, id.Name, rhsExp), f, l)
 		default: //recursive normalization for * and &
 			freshVar := b.nextFreshVar()
 			f, l = b.assignRhsToNode(freshVar, rhs.X, f, l)
-			first, last = b.appendNode(NewPointerNode(lhs, freshVar, rhsExp), f, l)
+			first, last = b.appendNode(b.NewPointerNode(lhs, freshVar, rhsExp), f, l)
 		}
 	case *ast.FuncLit:
-		first, last = b.appendNode(NewAllocNode(lhs, rhsExp), f, l)
+		first, last = b.appendNode(b.NewAllocNode(lhs, rhsExp), f, l)
 	case *ast.CallExpr:
 		//TODO: dunno what to do here..
 		//		assume there's no normalization needed and create AllocNode (what if the function returns double pointer)?
 		//		I guess for now, yes..
-		first, last = b.appendNode(NewAllocNode(lhs, rhsExp), f, l)
+		first, last = b.appendNode(b.NewAllocNode(lhs, rhsExp), f, l)
 
 		//function call itself can contain SingleDerefNode as argument
 		for _, v := range rhs.Args {
@@ -443,11 +442,11 @@ func (b *Builder) declToNode(spec *ast.ValueSpec, f Node, l Node) (first, last N
 		currVar := spec.Names[0].Name
 		for i := 1; i < refCount; i++ {
 			freshVar := b.nextFreshVar()
-			f, l = b.appendNode(NewRefNode(currVar, freshVar, spec), f, l)
+			f, l = b.appendNode(b.NewRefNode(currVar, freshVar, spec), f, l)
 			currVar = freshVar
 		}
 		if spec.Values == nil {
-			first, last = b.appendNode(NewNullNode(currVar, spec), f, l)
+			first, last = b.appendNode(b.NewNullNode(currVar, spec), f, l)
 		} else {
 			first, last = b.assignRhsToNode(currVar, spec.Values[0], f, l)
 		}
@@ -499,7 +498,7 @@ func (b *Builder) othersToNode(a ast.Node, f Node, l Node) (first, last Node) {
 	case *ast.StarExpr:
 		switch id := a.X.(type) {
 		case *ast.Ident:
-			first, last = b.appendNode(NewSingleDerefNode(id.Name, id), f, l)
+			first, last = b.appendNode(b.NewSingleDerefNode(id.Name, id), f, l)
 		default:
 			first, last = b.othersToNode(id, f, l)
 		}
