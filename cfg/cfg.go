@@ -179,7 +179,7 @@ func ToString(node Node) string {
 	case *AllocNode:
 		return "[" + n.Lhs + " = alloc]"
 	case *SingleDerefNode:
-		return "[" + n.Lhs + "]"
+		return "[*" + n.Lhs + "]"
 	default:
 		panic("unimplemented print")
 	}
@@ -350,9 +350,11 @@ func (b *Builder) assignLhsToNode(lhsExp ast.Expr, rhsExp ast.Expr, f Node, l No
 			}
 			freshVar := b.nextFreshVar()
 			newF, newL := b.assignRhsToNode(freshVar, rhsExp, f, l)
-			//only if new nodes were created we will append DerefNode
-			if newF != f || newL != l {
+			//only if new nodes (excluding SingleDerefNode) were created we will append DerefNode
+			if newL != l && !b.singleDerefOnly(newF, newL) {
 				first, last = b.appendNode(NewDerefNode(id.Name, freshVar, lhsExp), newF, newL)
+			} else { //otherwise we will append SingleDerefNode
+				first, last = b.appendNode(NewSingleDerefNode(id.Name, id), newF, newL)
 			}
 		default: //we need to normalize lhs StarExpr
 			freshVar := b.nextFreshVar()
@@ -362,6 +364,8 @@ func (b *Builder) assignLhsToNode(lhsExp ast.Expr, rhsExp ast.Expr, f Node, l No
 			lhs.X = ast.NewIdent(freshVar)
 			first, last = b.assignLhsToNode(lhs, rhsExp, f, l)
 		}
+	default:
+		first, last = f, l
 	}
 	return first, last
 }
@@ -397,6 +401,8 @@ func (b *Builder) assignRhsToNode(lhs string, rhsExp ast.Expr, f Node, l Node) (
 			f, l = b.assignRhsToNode(freshVar, rhs.X, f, l)
 			first, last = b.appendNode(NewPointerNode(lhs, freshVar, rhsExp), f, l)
 		}
+	case *ast.FuncLit:
+		first, last = b.appendNode(NewAllocNode(lhs, rhsExp), f, l)
 	case *ast.CallExpr:
 		//TODO: dunno what to do here..
 		//		assume there's no normalization needed and create AllocNode (what if the function returns double pointer)?
@@ -407,6 +413,8 @@ func (b *Builder) assignRhsToNode(lhs string, rhsExp ast.Expr, f Node, l Node) (
 		for _, v := range rhs.Args {
 			first, last = b.othersToNode(v, first, last)
 		}
+	default:
+		first, last = b.othersToNode(rhs, f, l)
 	}
 	return first, last
 }
@@ -449,6 +457,80 @@ func (b *Builder) declToNode(spec *ast.ValueSpec, f Node, l Node) (first, last N
 
 //decomposes all other nodes
 func (b *Builder) othersToNode(a ast.Node, f Node, l Node) (first, last Node) {
-	//TODO: find all SingleDerefNode
-	return f, l
+	switch a := a.(type) {
+	case *ast.ExprStmt:
+		first, last = b.othersToNode(a.X, f, l)
+	case *ast.SendStmt:
+		first, last = b.othersToNode(a.Chan, f, l)
+		first, last = b.othersToNode(a.Value, first, last)
+	case *ast.IncDecStmt:
+		first, last = b.othersToNode(a.X, f, l)
+	case *ast.GoStmt:
+		first, last = b.othersToNode(a.Call, f, l)
+	case *ast.DeferStmt:
+		first, last = b.othersToNode(a.Call, f, l)
+	case *ast.ReturnStmt:
+		first, last = b.exprArrToNode(a.Results, f, l)
+	case *ast.CompositeLit:
+		first, last = b.exprArrToNode(a.Elts, f, l)
+	case *ast.ParenExpr:
+		first, last = b.othersToNode(a.X, f, l)
+	case *ast.SelectorExpr:
+		first, last = b.othersToNode(a.X, f, l)
+	case *ast.IndexExpr:
+		first, last = b.othersToNode(a.X, f, l)
+	case *ast.SliceExpr:
+		first, last = b.othersToNode(a.X, f, l)
+		first, last = b.othersToNode(a.Low, first, last)
+		first, last = b.othersToNode(a.High, first, last)
+		first, last = b.othersToNode(a.Max, first, last)
+	case *ast.TypeAssertExpr:
+		first, last = b.othersToNode(a.X, f, l)
+	case *ast.CallExpr:
+		first, last = b.exprArrToNode(a.Args, f, l)
+	case *ast.UnaryExpr:
+		first, last = b.othersToNode(a.X, f, l)
+	case *ast.BinaryExpr:
+		first, last = b.othersToNode(a.X, f, l)
+		first, last = b.othersToNode(a.Y, first, last)
+	case *ast.KeyValueExpr:
+		first, last = b.othersToNode(a.Key, f, l)
+		first, last = b.othersToNode(a.Value, first, last)
+	case *ast.StarExpr:
+		switch id := a.X.(type) {
+		case *ast.Ident:
+			first, last = b.appendNode(NewSingleDerefNode(id.Name, id), f, l)
+		default:
+			first, last = b.othersToNode(id, f, l)
+		}
+	default:
+		first, last = f, l
+	}
+	return first, last
+}
+
+//calls othersToNode() on each item of expr array
+func (b *Builder) exprArrToNode(arr []ast.Expr, f Node, l Node) (first, last Node) {
+	first, last = f, l
+	for _, expr := range arr {
+		first, last = b.othersToNode(expr, first, last)
+	}
+	return first, last
+}
+
+//checks if all nodes between start and end are SingleDerefNode - expects there are no cycles
+func (b *Builder) singleDerefOnly(start Node, end Node) bool {
+	if start != nil {
+		_, ok := start.(*SingleDerefNode)
+		if !ok {
+			return false
+		}
+		for succ := range start.Succ() {
+			res := b.singleDerefOnly(succ, end)
+			if !res {
+				return false
+			}
+		}
+	}
+	return true
 }
