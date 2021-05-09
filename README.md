@@ -40,7 +40,7 @@ z grafu vypadly úplně. V tom případě bylo potřeba správně napojit hrany 
 ```go
 sum := new(int)
 for i := 0; i < 2; i++ {
-    sum = x
+    sum = **x
 }
 res := *sum
 ```
@@ -140,11 +140,11 @@ zacyklení, všechny uzly v cyklu se spojí do nového, který sjednocení všec
 
 Pravidla kubického algoritmu:
 
-- *t∈x*
+- *t ∈ x*
 
   Tato relace nastaví uzlu flag `in` pro token `t` a pokud jsou v grafu nějaká pravidla druhého typu, které
   čekaly na splnění této podmínky, tak jejich pravidla taktéž provedeme.
-- *t∈x⇒y⊆z*
+- *t ∈ x ⇒ y ⊆ z*
 
   Pokud je implikace splněná, tak přidáme hranu z `y` do `z`. Pokud není splněná, tak si uložíme toto pravidlo na pozdější vyhodnocení, 
   ke kterému může dojít pokud později, dostaneme-li pravidlo prvního typu ve tvaru `t∈x`.
