@@ -171,6 +171,9 @@ Lower bound této lattice je pro prvky `x` a `y` definovaná následovně:
 - Pokud je `x` a `y` Not Null, pak je i `lub(x, y) == Not Null`
 - Jinak je `lub(x, y) == Possibly Null`
 
+Jednotlivé implementace se nachází v packagi `nilness`. Struktury pro lattice jsou v souboru `nilness/lattice.go` a samotná analýza
+je v souboru `nilness/nilness.go`
+
 ### Napojení na analysis framework jazyka GO
 
 GO definuje vlastní analysis framework, který definuje rigorózní prostředí na vývoj statických kontrol. 
