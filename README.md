@@ -158,7 +158,7 @@ go test -v ./pointto/...
 ```
 
 ### Nilness analýza
-Pro nilness analýzu jsme použili stejný framework, jako jsme používali na cvičeních pro interproceduální analýzu. Jako největší problém
+Pro nilness analýzu jsme použili stejný framework, jako jsme používali na cvičeních pro intraproceduální analýzu. Jako největší problém
 se ale ukázala absence tříd, trait a šablon v jazyce GO. Znamenalo to tedy, že jsme nemohli definovat obecnout strukturu například pro map lattice.
 Museli jsme tedy definovat zvášť strukturu pro map lattice mapující proměnné na prvky Nilness lattice a zvlášť pro map lattice mapující uzly CFG na
 mapu (proměnná -> prvek Nilness lattice). To vedlo na velmi nehezkou duplicitu kódu.
