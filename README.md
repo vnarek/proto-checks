@@ -166,17 +166,10 @@ mapu (proměnná -> prvek Nilness lattice). To vedlo na velmi nehezkou duplicitu
 Zmíněná nilness lattice se skládá pouze ze dvou prvků:
 - Not Null (v kódu `NN`) - bottom, znamená že proměnná určitě není null
 - Possibly Null (v kódu `PN`) - top, znamená že proměnná může a nemusí být null
+
 Lower bound této lattice je pro prvky `x` a `y` definovaná následovně:
 - Pokud je `x` a `y` Not Null, pak je i `lub(x, y) == Not Null`
 - Jinak je `lub(x, y) == Possibly Null`
-
-Jednotlivé implementace se nachází v packagi `nilness`. Struktury pro lattice jsou v souboru `nilness/lattice.go` a samotná analýza
-je v souboru `nilness/nilness.go`
-
-Testy pro nilness analýzu se spouští příkazem:
-```sh
-go test -v ./nilness/...
-```
 
 ### Napojení na analysis framework jazyka GO
 
