@@ -180,7 +180,7 @@ Obsahuje jak testovací prostředí, tak interface, který umožní spoustět ko
 Implementace tohoto napojení se nachází v root složce repositáře v souboru `protocheck.go` s testem v souboru `protocheck_test.go`.
 Test pracuje se soubory ve složce `testdata`, která se chová jako [GOPATH](https://golang.org/doc/gopath_code) jazyka GO.
 
-Testy se píší jako zdrojové kódy v jazyce GO, s tím že obsahují komentář s reportem na řádcích s problematickým kódem.
+Testy se píší jako zdrojové kódy v jazyce GO, s tím že obsahují komentář s reportem na řádcích s problematickým kódem (viz například soubor `testdata/src/basic/basic_impl.go`).
 
 ![Příklad testu](./assets/test.png)
 
